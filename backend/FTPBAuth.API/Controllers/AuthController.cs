@@ -9,7 +9,7 @@ using FTPBAuth.API.Services;
 namespace FTPBAuth.API.Controllers;
 
 [ApiController]
-[Route("api/auth")]
+[Route("auth")]
 public class AuthController : ControllerBase
 {
     private readonly ApplicationDbContext _context;

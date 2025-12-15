@@ -49,14 +49,14 @@ backend/
 
 | Method | Endpoint | Auth Required | Description |
 |--------|----------|---------------|-------------|
-| POST | `/api/auth/register` | No | Register with email/password |
-| POST | `/api/auth/login` | No | Login with email/password |
-| POST | `/api/auth/otp/send` | No | Send OTP to phone number |
-| POST | `/api/auth/otp/verify` | No | Verify OTP and login/register |
-| POST | `/api/auth/link-phone` | Yes | Link phone to email account |
-| POST | `/api/auth/link-email` | Yes | Link email to phone account |
-| GET | `/api/auth/me` | Yes | Get current user info |
-| POST | `/api/auth/validate` | No | Validate a JWT token |
+| POST | `/auth/register` | No | Register with email/password |
+| POST | `/auth/login` | No | Login with email/password |
+| POST | `/auth/otp/send` | No | Send OTP to phone number |
+| POST | `/auth/otp/verify` | No | Verify OTP and login/register |
+| POST | `/auth/link-phone` | Yes | Link phone to email account |
+| POST | `/auth/link-email` | Yes | Link email to phone account |
+| GET | `/auth/me` | Yes | Get current user info |
+| POST | `/auth/validate` | No | Validate a JWT token |
 
 ## Setup Instructions
 
@@ -117,7 +117,7 @@ The API will be available at:
 
 ### Register
 ```json
-POST /api/auth/register
+POST /auth/register
 {
   "email": "user@example.com",
   "password": "SecurePassword123!"
@@ -141,7 +141,7 @@ Response:
 
 ### Login (Email/Password)
 ```json
-POST /api/auth/login
+POST /auth/login
 {
   "email": "user@example.com",
   "password": "SecurePassword123!"
@@ -150,7 +150,7 @@ POST /api/auth/login
 
 ### Send OTP
 ```json
-POST /api/auth/otp/send
+POST /auth/otp/send
 {
   "phoneNumber": "+1234567890"
 }
@@ -164,7 +164,7 @@ Response:
 
 ### Verify OTP
 ```json
-POST /api/auth/otp/verify
+POST /auth/otp/verify
 {
   "phoneNumber": "+1234567890",
   "code": "123456"
@@ -173,7 +173,7 @@ POST /api/auth/otp/verify
 
 ### Link Phone (Requires Auth)
 ```json
-POST /api/auth/link-phone
+POST /auth/link-phone
 Authorization: Bearer <token>
 {
   "phoneNumber": "+1234567890",
@@ -183,7 +183,7 @@ Authorization: Bearer <token>
 
 ### Link Email (Requires Auth)
 ```json
-POST /api/auth/link-email
+POST /auth/link-email
 Authorization: Bearer <token>
 {
   "email": "user@example.com",
@@ -193,13 +193,13 @@ Authorization: Bearer <token>
 
 ### Get Current User (Requires Auth)
 ```json
-GET /api/auth/me
+GET /auth/me
 Authorization: Bearer <token>
 ```
 
 ### Validate Token
 ```json
-POST /api/auth/validate
+POST /auth/validate
 {
   "token": "eyJhbGciOiJIUzI1NiIs..."
 }
