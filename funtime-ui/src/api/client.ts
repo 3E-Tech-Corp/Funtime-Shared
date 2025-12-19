@@ -15,8 +15,16 @@ import type {
 
 export interface FuntimeClientConfig {
   baseUrl: string;
+  stripePublishableKey?: string;
   getToken?: () => string | null;
   onUnauthorized?: () => void;
+}
+
+// Store config globally for components to access
+let globalConfig: FuntimeClientConfig | null = null;
+
+export function getConfig(): FuntimeClientConfig | null {
+  return globalConfig;
 }
 
 export class FuntimeClient {
@@ -225,19 +233,43 @@ export class FuntimeClient {
       body: JSON.stringify({ subscriptionId, cancelAtPeriodEnd }),
     });
   }
+
+  async resumeSubscription(subscriptionId: number): Promise<Subscription> {
+    return this.request('/payments/subscriptions/resume', {
+      method: 'POST',
+      body: JSON.stringify({ subscriptionId }),
+    });
+  }
+
+  async createPaymentWithMethod(
+    paymentMethodId: string,
+    amountCents: number,
+    currency: string,
+    description?: string,
+    siteKey?: string
+  ): Promise<Payment> {
+    return this.request('/payments/charge', {
+      method: 'POST',
+      body: JSON.stringify({ paymentMethodId, amountCents, currency, description, siteKey }),
+    });
+  }
 }
 
 // Default singleton for simple usage
 let defaultClient: FuntimeClient | null = null;
 
 export function initFuntimeClient(config: FuntimeClientConfig): FuntimeClient {
+  globalConfig = config;
   defaultClient = new FuntimeClient(config);
   return defaultClient;
 }
 
+// Alias for initFuntimeClient (convenience)
+export const setFuntimeClient = initFuntimeClient;
+
 export function getFuntimeClient(): FuntimeClient {
   if (!defaultClient) {
-    throw new Error('FuntimeClient not initialized. Call initFuntimeClient first.');
+    throw new Error('FuntimeClient not initialized. Call initFuntimeClient or setFuntimeClient first.');
   }
   return defaultClient;
 }
