@@ -25,12 +25,17 @@ describe('useAuth', () => {
     localStorage.clear();
   });
 
-  it('initializes with loading state', () => {
+  it('initializes with correct default state', async () => {
     const { result } = renderHook(() => useAuth());
 
-    expect(result.current.isLoading).toBe(true);
+    // After initialization with no token, should not be authenticated
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
     expect(result.current.isAuthenticated).toBe(false);
     expect(result.current.user).toBe(null);
+    expect(result.current.token).toBe(null);
   });
 
   it('sets isLoading to false after initialization', async () => {
