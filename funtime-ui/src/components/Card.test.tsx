@@ -9,30 +9,29 @@ describe('Card', () => {
   });
 
   it('applies default padding', () => {
-    render(<Card>Content</Card>);
-    expect(screen.getByText('Content').parentElement).toHaveClass('p-4');
+    const { container } = render(<Card>Content</Card>);
+    expect(container.firstChild).toHaveClass('p-4');
   });
 
   it('applies custom padding', () => {
-    const { rerender } = render(<Card padding="none">Content</Card>);
-    expect(screen.getByText('Content').parentElement).not.toHaveClass('p-3', 'p-4', 'p-6');
+    const { container, rerender } = render(<Card padding="none">Content</Card>);
+    expect(container.firstChild).not.toHaveClass('p-3', 'p-4', 'p-6');
 
     rerender(<Card padding="sm">Content</Card>);
-    expect(screen.getByText('Content').parentElement).toHaveClass('p-3');
+    expect(container.firstChild).toHaveClass('p-3');
 
     rerender(<Card padding="lg">Content</Card>);
-    expect(screen.getByText('Content').parentElement).toHaveClass('p-6');
+    expect(container.firstChild).toHaveClass('p-6');
   });
 
   it('applies custom className', () => {
-    render(<Card className="custom-card">Content</Card>);
-    expect(screen.getByText('Content').parentElement).toHaveClass('custom-card');
+    const { container } = render(<Card className="custom-card">Content</Card>);
+    expect(container.firstChild).toHaveClass('custom-card');
   });
 
   it('has base styles', () => {
-    render(<Card>Content</Card>);
-    const card = screen.getByText('Content').parentElement;
-    expect(card).toHaveClass('bg-white', 'rounded-lg', 'shadow-md');
+    const { container } = render(<Card>Content</Card>);
+    expect(container.firstChild).toHaveClass('bg-white', 'rounded-lg', 'shadow-md');
   });
 });
 
@@ -43,13 +42,13 @@ describe('CardHeader', () => {
   });
 
   it('applies border and spacing styles', () => {
-    render(<CardHeader>Header</CardHeader>);
-    expect(screen.getByText('Header').parentElement).toHaveClass('border-b', 'pb-4', 'mb-4');
+    const { container } = render(<CardHeader>Header</CardHeader>);
+    expect(container.firstChild).toHaveClass('border-b', 'pb-4', 'mb-4');
   });
 
   it('applies custom className', () => {
-    render(<CardHeader className="custom-header">Header</CardHeader>);
-    expect(screen.getByText('Header').parentElement).toHaveClass('custom-header');
+    const { container } = render(<CardHeader className="custom-header">Header</CardHeader>);
+    expect(container.firstChild).toHaveClass('custom-header');
   });
 });
 
@@ -89,13 +88,13 @@ describe('CardFooter', () => {
   });
 
   it('applies border and spacing styles', () => {
-    render(<CardFooter>Footer</CardFooter>);
-    expect(screen.getByText('Footer').parentElement).toHaveClass('border-t', 'pt-4', 'mt-4');
+    const { container } = render(<CardFooter>Footer</CardFooter>);
+    expect(container.firstChild).toHaveClass('border-t', 'pt-4', 'mt-4');
   });
 
   it('applies custom className', () => {
-    render(<CardFooter className="custom-footer">Footer</CardFooter>);
-    expect(screen.getByText('Footer').parentElement).toHaveClass('custom-footer');
+    const { container } = render(<CardFooter className="custom-footer">Footer</CardFooter>);
+    expect(container.firstChild).toHaveClass('custom-footer');
   });
 });
 
