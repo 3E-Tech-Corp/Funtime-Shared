@@ -32,6 +32,11 @@ temp/
 *.backup
 backup/
 
+obj/
+dist/
+npm_modules/
+debug/
+bin/
 
 #uploads
 uploads/
