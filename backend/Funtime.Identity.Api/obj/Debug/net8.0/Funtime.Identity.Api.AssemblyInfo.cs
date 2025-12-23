@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Funtime.Identity.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+ebb489f51982f6a33376a726336fa357f6acac28")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+93e0fa56d6e26f93e08e7863608f7f7d037aadab")]
 [assembly: System.Reflection.AssemblyProductAttribute("Funtime.Identity.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Funtime.Identity.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

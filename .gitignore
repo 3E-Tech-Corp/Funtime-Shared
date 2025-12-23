@@ -44,3 +44,4 @@ bin/
 obj/
 *.dll
 *.exe  
+backend/Funtime.Identity.Api/obj/Debug/net8.0/Funtime.Identity.Api.AssemblyInfo.cs
