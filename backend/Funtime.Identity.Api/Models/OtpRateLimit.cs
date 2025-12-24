@@ -7,9 +7,12 @@ public class OtpRateLimit
     [Key]
     public int Id { get; set; }
 
+    /// <summary>
+    /// The identifier (email or phone number) being rate limited
+    /// </summary>
     [Required]
-    [MaxLength(20)]
-    public string PhoneNumber { get; set; } = string.Empty;
+    [MaxLength(255)]
+    public string Identifier { get; set; } = string.Empty;
 
     public int RequestCount { get; set; } = 0;
 

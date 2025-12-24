@@ -8,6 +8,7 @@ public class OtpService : IOtpService
 {
     private readonly ApplicationDbContext _context;
     private readonly ISmsService _smsService;
+    private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OtpService> _logger;
 
@@ -17,22 +18,24 @@ public class OtpService : IOtpService
     public OtpService(
         ApplicationDbContext context,
         ISmsService smsService,
+        IEmailService emailService,
         IConfiguration configuration,
         ILogger<OtpService> logger)
     {
         _context = context;
         _smsService = smsService;
+        _emailService = emailService;
         _configuration = configuration;
         _logger = logger;
     }
 
-    public async Task<bool> IsRateLimitedAsync(string phoneNumber)
+    public async Task<bool> IsRateLimitedAsync(string identifier)
     {
         var maxAttempts = int.Parse(_configuration["RateLimiting:OtpMaxAttempts"] ?? "5");
         var windowMinutes = int.Parse(_configuration["RateLimiting:OtpWindowMinutes"] ?? "15");
 
         var rateLimit = await _context.OtpRateLimits
-            .FirstOrDefaultAsync(r => r.PhoneNumber == phoneNumber);
+            .FirstOrDefaultAsync(r => r.Identifier == identifier);
 
         if (rateLimit == null)
         {
@@ -59,10 +62,10 @@ public class OtpService : IOtpService
         return rateLimit.RequestCount >= maxAttempts;
     }
 
-    public async Task<(bool success, string message)> SendOtpAsync(string phoneNumber)
+    public async Task<(bool success, string message)> SendOtpAsync(string identifier)
     {
         // Check rate limiting
-        if (await IsRateLimitedAsync(phoneNumber))
+        if (await IsRateLimitedAsync(identifier))
         {
             return (false, "Too many OTP requests. Please try again later.");
         }
@@ -71,9 +74,9 @@ public class OtpService : IOtpService
         var code = GenerateOtp();
         var expiresAt = DateTime.UtcNow.AddMinutes(OTP_EXPIRATION_MINUTES);
 
-        // Invalidate previous unused OTPs for this phone
+        // Invalidate previous unused OTPs for this identifier
         var previousOtps = await _context.OtpRequests
-            .Where(o => o.PhoneNumber == phoneNumber && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
+            .Where(o => o.Identifier == identifier && !o.IsUsed && o.ExpiresAt > DateTime.UtcNow)
             .ToListAsync();
 
         foreach (var otp in previousOtps)
@@ -84,7 +87,7 @@ public class OtpService : IOtpService
         // Create new OTP request
         var otpRequest = new OtpRequest
         {
-            PhoneNumber = phoneNumber,
+            Identifier = identifier,
             Code = code,
             ExpiresAt = expiresAt,
             CreatedAt = DateTime.UtcNow
@@ -93,27 +96,40 @@ public class OtpService : IOtpService
         _context.OtpRequests.Add(otpRequest);
 
         // Update rate limit counter
-        await UpdateRateLimitAsync(phoneNumber);
+        await UpdateRateLimitAsync(identifier);
 
         await _context.SaveChangesAsync();
 
-        // Send OTP via SMS
-        var sent = await _smsService.SendSmsAsync(phoneNumber, $"Your Funtime Pickleball verification code is: {code}. It expires in {OTP_EXPIRATION_MINUTES} minutes.");
+        // Determine if this is an email or phone and send accordingly
+        bool sent;
+        if (IsEmail(identifier))
+        {
+            sent = await _emailService.SendEmailAsync(
+                identifier,
+                "Your Funtime Pickleball Verification Code",
+                $"Your verification code is: {code}. It expires in {OTP_EXPIRATION_MINUTES} minutes.");
+        }
+        else
+        {
+            sent = await _smsService.SendSmsAsync(
+                identifier,
+                $"Your Funtime Pickleball verification code is: {code}. It expires in {OTP_EXPIRATION_MINUTES} minutes.");
+        }
 
         if (!sent)
         {
-            _logger.LogError("Failed to send OTP SMS to {PhoneNumber}", phoneNumber);
+            _logger.LogError("Failed to send OTP to {Identifier}", identifier);
             return (false, "Failed to send OTP. Please try again.");
         }
 
-        _logger.LogInformation("OTP sent successfully to {PhoneNumber}", phoneNumber);
+        _logger.LogInformation("OTP sent successfully to {Identifier}", identifier);
         return (true, "OTP sent successfully.");
     }
 
-    public async Task<(bool success, string message)> VerifyOtpAsync(string phoneNumber, string code)
+    public async Task<(bool success, string message)> VerifyOtpAsync(string identifier, string code)
     {
         var otpRequest = await _context.OtpRequests
-            .Where(o => o.PhoneNumber == phoneNumber &&
+            .Where(o => o.Identifier == identifier &&
                         o.Code == code &&
                         !o.IsUsed &&
                         o.ExpiresAt > DateTime.UtcNow)
@@ -124,7 +140,7 @@ public class OtpService : IOtpService
         {
             // Check if there's an expired or used OTP to give better error message
             var existingOtp = await _context.OtpRequests
-                .Where(o => o.PhoneNumber == phoneNumber && o.Code == code)
+                .Where(o => o.Identifier == identifier && o.Code == code)
                 .OrderByDescending(o => o.CreatedAt)
                 .FirstOrDefaultAsync();
 
@@ -150,19 +166,19 @@ public class OtpService : IOtpService
         return (true, "OTP verified successfully.");
     }
 
-    private async Task UpdateRateLimitAsync(string phoneNumber)
+    private async Task UpdateRateLimitAsync(string identifier)
     {
         var maxAttempts = int.Parse(_configuration["RateLimiting:OtpMaxAttempts"] ?? "5");
         var windowMinutes = int.Parse(_configuration["RateLimiting:OtpWindowMinutes"] ?? "15");
 
         var rateLimit = await _context.OtpRateLimits
-            .FirstOrDefaultAsync(r => r.PhoneNumber == phoneNumber);
+            .FirstOrDefaultAsync(r => r.Identifier == identifier);
 
         if (rateLimit == null)
         {
             rateLimit = new OtpRateLimit
             {
-                PhoneNumber = phoneNumber,
+                Identifier = identifier,
                 RequestCount = 1,
                 WindowStart = DateTime.UtcNow
             };
@@ -194,5 +210,10 @@ public class OtpService : IOtpService
     {
         var random = new Random();
         return random.Next(0, 1000000).ToString("D6");
+    }
+
+    private static bool IsEmail(string identifier)
+    {
+        return identifier.Contains('@');
     }
 }

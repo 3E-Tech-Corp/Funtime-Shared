@@ -39,14 +39,14 @@ public class ApplicationDbContext : DbContext
         // OtpRequest configuration
         modelBuilder.Entity<OtpRequest>(entity =>
         {
-            entity.HasIndex(e => new { e.PhoneNumber, e.Code });
+            entity.HasIndex(e => new { e.Identifier, e.Code });
             entity.HasIndex(e => e.ExpiresAt);
         });
 
         // OtpRateLimit configuration
         modelBuilder.Entity<OtpRateLimit>(entity =>
         {
-            entity.HasIndex(e => e.PhoneNumber).IsUnique();
+            entity.HasIndex(e => e.Identifier).IsUnique();
         });
 
         // ExternalLogin configuration

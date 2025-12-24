@@ -7,9 +7,12 @@ public class OtpRequest
     [Key]
     public int Id { get; set; }
 
+    /// <summary>
+    /// The identifier (email or phone number) for OTP delivery
+    /// </summary>
     [Required]
-    [MaxLength(20)]
-    public string PhoneNumber { get; set; } = string.Empty;
+    [MaxLength(255)]
+    public string Identifier { get; set; } = string.Empty;
 
     [Required]
     [MaxLength(6)]
