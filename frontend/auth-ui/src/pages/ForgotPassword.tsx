@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Eye, EyeOff, KeyRound, ArrowLeft, CheckCircle2, Loader2, Mail, Phone, UserPlus } from 'lucide-react';
 import { authApi } from '../utils/api';
-import { getSiteDisplayName, getSiteKey, getSiteRedirectUrl } from '../utils/redirect';
+import { getSiteDisplayName, getSiteKey, redirectWithToken } from '../utils/redirect';
 
 type Step = 'input' | 'code' | 'password' | 'create-account' | 'success';
 type RecoveryMode = 'email' | 'phone';
 
 export function ForgotPasswordPage() {
-  const navigate = useNavigate();
   const [mode, setMode] = useState<RecoveryMode>('email');
   const [step, setStep] = useState<Step>('input');
   const [isLoading, setIsLoading] = useState(false);
@@ -93,8 +92,7 @@ export function ForgotPasswordPage() {
       if (response.success && response.token) {
         // Store token and redirect to site
         localStorage.setItem('auth_token', response.token);
-        const redirectUrl = getSiteRedirectUrl(siteKey, response.token);
-        window.location.href = redirectUrl;
+        redirectWithToken(response.token);
       } else {
         setError(response.message || 'Failed to create account');
       }
