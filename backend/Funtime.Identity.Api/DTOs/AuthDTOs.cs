@@ -31,7 +31,6 @@ public class LoginRequest
 public class OtpSendRequest
 {
     [Required]
-    [Phone]
     [MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
 }
@@ -40,7 +39,6 @@ public class OtpSendRequest
 public class OtpVerifyRequest
 {
     [Required]
-    [Phone]
     [MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
 
@@ -53,7 +51,6 @@ public class OtpVerifyRequest
 public class LinkPhoneRequest
 {
     [Required]
-    [Phone]
     [MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
 
@@ -244,7 +241,6 @@ public class ChangePasswordRequest
 public class ResetPasswordRequest
 {
     [Required]
-    [Phone]
     [MaxLength(20)]
     public string PhoneNumber { get; set; } = string.Empty;
 
