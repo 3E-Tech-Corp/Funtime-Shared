@@ -41,6 +41,11 @@ public class JwtService : IJwtService
             claims.Add(new Claim(ClaimTypes.MobilePhone, user.PhoneNumber));
         }
 
+        if (!string.IsNullOrEmpty(user.SystemRole))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, user.SystemRole));
+        }
+
         // Fetch user's active sites
         var userSites = await _context.UserSites
             .Where(s => s.UserId == user.Id && s.IsActive)
@@ -88,6 +93,11 @@ public class JwtService : IJwtService
             claims.Add(new Claim(ClaimTypes.MobilePhone, user.PhoneNumber));
         }
 
+        if (!string.IsNullOrEmpty(user.SystemRole))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, user.SystemRole));
+        }
+
         var expirationMinutes = int.Parse(_configuration["Jwt:ExpirationInMinutes"] ?? "60");
 
         var token = new JwtSecurityToken(
@@ -101,7 +111,7 @@ public class JwtService : IJwtService
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public (bool isValid, int? userId, string? email, string? phoneNumber, List<string>? sites) ValidateToken(string token)
+    public (bool isValid, int? userId, string? email, string? phoneNumber, string? systemRole, List<string>? sites) ValidateToken(string token)
     {
         try
         {
@@ -125,12 +135,13 @@ public class JwtService : IJwtService
             if (validatedToken is not JwtSecurityToken jwtToken ||
                 !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
             {
-                return (false, null, null, null, null);
+                return (false, null, null, null, null, null);
             }
 
             var userIdClaim = principal.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var emailClaim = principal.FindFirst(ClaimTypes.Email)?.Value;
             var phoneClaim = principal.FindFirst(ClaimTypes.MobilePhone)?.Value;
+            var roleClaim = principal.FindFirst(ClaimTypes.Role)?.Value;
             var sitesClaim = principal.FindFirst("sites")?.Value;
 
             List<string>? sites = null;
@@ -141,14 +152,14 @@ public class JwtService : IJwtService
 
             if (int.TryParse(userIdClaim, out var userId))
             {
-                return (true, userId, emailClaim, phoneClaim, sites);
+                return (true, userId, emailClaim, phoneClaim, roleClaim, sites);
             }
 
-            return (false, null, null, null, null);
+            return (false, null, null, null, null, null);
         }
         catch
         {
-            return (false, null, null, null, null);
+            return (false, null, null, null, null, null);
         }
     }
 }

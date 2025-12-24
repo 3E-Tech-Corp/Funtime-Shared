@@ -95,6 +95,7 @@ public class UserResponse
     public int Id { get; set; }
     public string? Email { get; set; }
     public string? PhoneNumber { get; set; }
+    public string? SystemRole { get; set; }
     public bool IsEmailVerified { get; set; }
     public bool IsPhoneVerified { get; set; }
     public DateTime CreatedAt { get; set; }
@@ -115,6 +116,7 @@ public class ValidateTokenResponse
     public int? UserId { get; set; }
     public string? Email { get; set; }
     public string? PhoneNumber { get; set; }
+    public string? SystemRole { get; set; }
     public List<string>? Sites { get; set; }
     public string? Message { get; set; }
 }

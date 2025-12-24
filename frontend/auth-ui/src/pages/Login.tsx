@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, Mail, Phone, Loader2 } from 'lucide-react';
 import { authApi } from '../utils/api';
-import { redirectWithToken, getSiteDisplayName, getSiteKey, getReturnTo } from '../utils/redirect';
+import { redirectWithToken, getSiteDisplayName, getSiteKey, getReturnTo, getRedirectUrl } from '../utils/redirect';
 
 type AuthMode = 'email' | 'phone';
 
 export function LoginPage() {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>('email');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,6 +25,27 @@ export function LoginPage() {
   const siteKey = getSiteKey();
   const siteName = getSiteDisplayName(siteKey);
   const returnTo = getReturnTo();
+  const redirectUrl = getRedirectUrl();
+
+  // Handle successful login - route based on user role and redirect URL
+  const handleLoginSuccess = (token: string, systemRole?: string) => {
+    localStorage.setItem('auth_token', token);
+
+    // SU users go to admin dashboard
+    if (systemRole === 'SU') {
+      navigate('/admin');
+      return;
+    }
+
+    // If there's a redirect URL, redirect to that site
+    if (redirectUrl) {
+      redirectWithToken(token);
+      return;
+    }
+
+    // Otherwise show site selection
+    navigate('/sites');
+  };
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,7 +55,7 @@ export function LoginPage() {
     try {
       const response = await authApi.login(email, password);
       if (response.success && response.token) {
-        redirectWithToken(response.token);
+        handleLoginSuccess(response.token, response.user?.systemRole);
       } else {
         setError(response.message || 'Login failed');
       }
@@ -70,7 +92,7 @@ export function LoginPage() {
     try {
       const response = await authApi.verifyOtp(phoneNumber, otpCode);
       if (response.success && response.token) {
-        redirectWithToken(response.token);
+        handleLoginSuccess(response.token, response.user?.systemRole);
       } else {
         setError(response.message || 'Invalid code');
       }

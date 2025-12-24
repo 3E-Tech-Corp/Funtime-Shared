@@ -386,7 +386,7 @@ public class AuthController : ControllerBase
     [HttpPost("validate")]
     public ActionResult<ValidateTokenResponse> ValidateToken([FromBody] ValidateTokenRequest request)
     {
-        var (isValid, userId, email, phoneNumber, sites) = _jwtService.ValidateToken(request.Token);
+        var (isValid, userId, email, phoneNumber, systemRole, sites) = _jwtService.ValidateToken(request.Token);
 
         if (!isValid)
         {
@@ -403,6 +403,7 @@ public class AuthController : ControllerBase
             UserId = userId,
             Email = email,
             PhoneNumber = phoneNumber,
+            SystemRole = systemRole,
             Sites = sites,
             Message = "Token is valid."
         });
@@ -1133,6 +1134,7 @@ public class AuthController : ControllerBase
             Id = user.Id,
             Email = user.Email,
             PhoneNumber = user.PhoneNumber,
+            SystemRole = user.SystemRole,
             IsEmailVerified = user.IsEmailVerified,
             IsPhoneVerified = user.IsPhoneVerified,
             CreatedAt = user.CreatedAt,

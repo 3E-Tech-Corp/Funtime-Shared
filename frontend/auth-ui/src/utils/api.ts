@@ -15,6 +15,7 @@ interface AuthResponse {
     id: number;
     email?: string;
     phoneNumber?: string;
+    systemRole?: string;
   };
 }
 

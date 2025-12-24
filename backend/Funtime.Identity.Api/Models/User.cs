@@ -16,6 +16,12 @@ public class User
     [MaxLength(20)]
     public string? PhoneNumber { get; set; }
 
+    /// <summary>
+    /// System role: "SU" for super admin, null for regular users
+    /// </summary>
+    [MaxLength(10)]
+    public string? SystemRole { get; set; }
+
     public bool IsEmailVerified { get; set; } = false;
 
     public bool IsPhoneVerified { get; set; } = false;
