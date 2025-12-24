@@ -819,68 +819,41 @@ public class AuthController : ControllerBase
             });
         }
 
+        // Normalize the identifier
+        string identifier;
+        string responseMessage;
+
         if (!string.IsNullOrEmpty(request.Email))
         {
-            // Email-based password reset
-            var normalizedEmail = request.Email.ToLower();
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail);
-
-            if (user == null)
-            {
-                // Don't reveal that the email doesn't exist for security
-                return Ok(new ApiResponse
-                {
-                    Success = true,
-                    Message = "If an account exists with this email, a reset code has been sent."
-                });
-            }
-
-            // Generate and store a reset code for email
-            var (success, message) = await _otpService.SendOtpAsync(normalizedEmail);
-
-            _logger.LogInformation("Password reset code requested for email: {Email}", normalizedEmail);
-
-            return Ok(new ApiResponse
-            {
-                Success = true,
-                Message = "If an account exists with this email, a reset code has been sent."
-            });
+            identifier = request.Email.ToLower();
+            responseMessage = "If an account exists with this email, a reset code has been sent.";
         }
         else
         {
-            // Phone-based password reset
-            var normalizedPhone = NormalizePhoneNumber(request.PhoneNumber!);
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone);
-
-            if (user == null)
-            {
-                // Don't reveal that the phone doesn't exist for security
-                return Ok(new ApiResponse
-                {
-                    Success = true,
-                    Message = "If an account exists with this phone number, a reset code has been sent."
-                });
-            }
-
-            var (success, message) = await _otpService.SendOtpAsync(normalizedPhone);
-
-            if (!success)
-            {
-                return BadRequest(new ApiResponse
-                {
-                    Success = false,
-                    Message = message
-                });
-            }
-
-            _logger.LogInformation("Password reset code requested for phone: {Phone}", normalizedPhone);
-
-            return Ok(new ApiResponse
-            {
-                Success = true,
-                Message = "Reset code sent to your phone number."
-            });
+            identifier = NormalizePhoneNumber(request.PhoneNumber!);
+            responseMessage = "If an account exists with this phone number, a reset code has been sent.";
         }
+
+        // Send OTP - OtpService will look up user and store UserId if found
+        // Always returns success to prevent user enumeration
+        var (success, message) = await _otpService.SendOtpAsync(identifier);
+
+        if (!success)
+        {
+            // Only fail for rate limiting or delivery issues, not for missing user
+            _logger.LogWarning("Failed to send password reset OTP to {Identifier}: {Message}", identifier, message);
+        }
+        else
+        {
+            _logger.LogInformation("Password reset code requested for: {Identifier}", identifier);
+        }
+
+        // Always return success to prevent user enumeration
+        return Ok(new ApiResponse
+        {
+            Success = true,
+            Message = responseMessage
+        });
     }
 
     /// <summary>
@@ -899,31 +872,13 @@ public class AuthController : ControllerBase
             });
         }
 
-        string identifier;
-        User? user;
+        // Normalize the identifier
+        string identifier = !string.IsNullOrEmpty(request.Email)
+            ? request.Email.ToLower()
+            : NormalizePhoneNumber(request.PhoneNumber!);
 
-        if (!string.IsNullOrEmpty(request.Email))
-        {
-            identifier = request.Email.ToLower();
-            user = await _context.Users.FirstOrDefaultAsync(u => u.Email == identifier);
-        }
-        else
-        {
-            identifier = NormalizePhoneNumber(request.PhoneNumber!);
-            user = await _context.Users.FirstOrDefaultAsync(u => u.PhoneNumber == identifier);
-        }
-
-        if (user == null)
-        {
-            return BadRequest(new ApiResponse
-            {
-                Success = false,
-                Message = "Invalid reset code or account not found."
-            });
-        }
-
-        // Verify the code (ignore matchedUserId, we already have the user)
-        var (success, message, _) = await _otpService.VerifyOtpAsync(identifier, request.Code);
+        // Verify the code and get matched user ID
+        var (success, message, matchedUserId) = await _otpService.VerifyOtpAsync(identifier, request.Code);
 
         if (!success)
         {
@@ -931,6 +886,26 @@ public class AuthController : ControllerBase
             {
                 Success = false,
                 Message = message
+            });
+        }
+
+        // For password reset, user must exist (unlike OTP login which can create accounts)
+        if (!matchedUserId.HasValue)
+        {
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                Message = "No account found with this email or phone number."
+            });
+        }
+
+        var user = await _context.Users.FindAsync(matchedUserId.Value);
+        if (user == null)
+        {
+            return BadRequest(new ApiResponse
+            {
+                Success = false,
+                Message = "Account not found."
             });
         }
 
