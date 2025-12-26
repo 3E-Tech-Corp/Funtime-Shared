@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle } from 'lucide-react';
+import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2 } from 'lucide-react';
 import { notificationApi } from '../utils/api';
 import type {
   MailProfile,
-  NotificationTemplate,
-  NotificationTask,
-  NotificationOutbox,
-  NotificationHistory,
+  AppRow,
+  EmailTemplate,
+  TaskRow,
+  OutboxRow,
+  HistoryRow,
   NotificationStats,
+  LookupItem,
 } from '../utils/api';
 
-type SubTab = 'profiles' | 'templates' | 'tasks' | 'outbox' | 'history';
+type SubTab = 'profiles' | 'apps' | 'templates' | 'tasks' | 'outbox' | 'history';
 
 export function NotificationsTab() {
   const [subTab, setSubTab] = useState<SubTab>('profiles');
@@ -22,35 +24,47 @@ export function NotificationsTab() {
   const [profiles, setProfiles] = useState<MailProfile[]>([]);
   const [editingProfile, setEditingProfile] = useState<Partial<MailProfile> | null>(null);
 
+  // Apps state
+  const [apps, setApps] = useState<AppRow[]>([]);
+  const [editingApp, setEditingApp] = useState<Partial<AppRow> | null>(null);
+  const [selectedAppId, setSelectedAppId] = useState<number | undefined>();
+
   // Templates state
-  const [templates, setTemplates] = useState<NotificationTemplate[]>([]);
-  const [editingTemplate, setEditingTemplate] = useState<Partial<NotificationTemplate> | null>(null);
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [editingTemplate, setEditingTemplate] = useState<Partial<EmailTemplate> | null>(null);
 
   // Tasks state
-  const [tasks, setTasks] = useState<NotificationTask[]>([]);
-  const [editingTask, setEditingTask] = useState<Partial<NotificationTask> | null>(null);
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [editingTask, setEditingTask] = useState<Partial<TaskRow> | null>(null);
+
+  // Lookups
+  const [securityModes, setSecurityModes] = useState<LookupItem[]>([]);
+  const [taskStatuses, setTaskStatuses] = useState<LookupItem[]>([]);
+  const [taskTypes, setTaskTypes] = useState<LookupItem[]>([]);
 
   // Outbox state
-  const [outboxItems, setOutboxItems] = useState<NotificationOutbox[]>([]);
+  const [outboxItems, setOutboxItems] = useState<OutboxRow[]>([]);
   const [outboxPage, setOutboxPage] = useState(1);
   const [outboxTotal, setOutboxTotal] = useState(0);
 
   // History state
-  const [historyItems, setHistoryItems] = useState<NotificationHistory[]>([]);
+  const [historyItems, setHistoryItems] = useState<HistoryRow[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
 
   useEffect(() => {
     loadStats();
+    loadLookups();
   }, []);
 
   useEffect(() => {
     if (subTab === 'profiles') loadProfiles();
+    if (subTab === 'apps') loadApps();
     if (subTab === 'templates') loadTemplates();
     if (subTab === 'tasks') loadTasks();
     if (subTab === 'outbox') loadOutbox();
     if (subTab === 'history') loadHistory();
-  }, [subTab]);
+  }, [subTab, selectedAppId]);
 
   const loadStats = async () => {
     try {
@@ -61,13 +75,42 @@ export function NotificationsTab() {
     }
   };
 
+  const loadLookups = async () => {
+    try {
+      const [modes, statuses, types] = await Promise.all([
+        notificationApi.getSecurityModes().catch(() => []),
+        notificationApi.getTaskStatuses().catch(() => []),
+        notificationApi.getTaskTypes().catch(() => []),
+      ]);
+      setSecurityModes(modes);
+      setTaskStatuses(statuses);
+      setTaskTypes(types);
+    } catch (err) {
+      console.error('Failed to load lookups:', err);
+    }
+  };
+
   const loadProfiles = async () => {
     setIsLoading(true);
     try {
       const data = await notificationApi.getProfiles();
       setProfiles(data);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load profiles');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadApps = async () => {
+    setIsLoading(true);
+    try {
+      const data = await notificationApi.getApps();
+      setApps(data);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load apps');
     } finally {
       setIsLoading(false);
     }
@@ -76,8 +119,9 @@ export function NotificationsTab() {
   const loadTemplates = async () => {
     setIsLoading(true);
     try {
-      const data = await notificationApi.getTemplates();
+      const data = await notificationApi.getTemplates(selectedAppId);
       setTemplates(data);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load templates');
     } finally {
@@ -88,8 +132,9 @@ export function NotificationsTab() {
   const loadTasks = async () => {
     setIsLoading(true);
     try {
-      const data = await notificationApi.getTasks();
+      const data = await notificationApi.getTasks(selectedAppId);
       setTasks(data);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load tasks');
     } finally {
@@ -104,6 +149,7 @@ export function NotificationsTab() {
       setOutboxItems(data.items);
       setOutboxTotal(data.totalCount);
       setOutboxPage(page);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load outbox');
     } finally {
@@ -118,6 +164,7 @@ export function NotificationsTab() {
       setHistoryItems(data.items);
       setHistoryTotal(data.totalCount);
       setHistoryPage(page);
+      setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load history');
     } finally {
@@ -125,14 +172,15 @@ export function NotificationsTab() {
     }
   };
 
+  // Profile handlers
   const handleSaveProfile = async () => {
     if (!editingProfile) return;
     setIsLoading(true);
     try {
-      if (editingProfile.id) {
-        await notificationApi.updateProfile(editingProfile.id, editingProfile);
+      if (editingProfile.profileId) {
+        await notificationApi.updateProfile(editingProfile.profileId, editingProfile);
       } else {
-        await notificationApi.createProfile(editingProfile as Omit<MailProfile, 'id' | 'createdAt' | 'updatedAt'>);
+        await notificationApi.createProfile(editingProfile);
       }
       setEditingProfile(null);
       loadProfiles();
@@ -144,25 +192,34 @@ export function NotificationsTab() {
     }
   };
 
-  const handleDeleteProfile = async (id: number) => {
-    if (!confirm('Delete this mail profile?')) return;
+  // App handlers
+  const handleSaveApp = async () => {
+    if (!editingApp) return;
+    setIsLoading(true);
     try {
-      await notificationApi.deleteProfile(id);
-      loadProfiles();
-      loadStats();
+      if (editingApp.app_ID) {
+        await notificationApi.updateApp(editingApp.app_ID, editingApp);
+      } else {
+        await notificationApi.createApp(editingApp);
+      }
+      setEditingApp(null);
+      loadApps();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete profile');
+      setError(err instanceof Error ? err.message : 'Failed to save app');
+    } finally {
+      setIsLoading(false);
     }
   };
 
+  // Template handlers
   const handleSaveTemplate = async () => {
     if (!editingTemplate) return;
     setIsLoading(true);
     try {
-      if (editingTemplate.id) {
-        await notificationApi.updateTemplate(editingTemplate.id, editingTemplate);
+      if (editingTemplate.eT_ID) {
+        await notificationApi.updateTemplate(editingTemplate.eT_ID, editingTemplate);
       } else {
-        await notificationApi.createTemplate(editingTemplate as Omit<NotificationTemplate, 'id' | 'createdAt' | 'updatedAt'>);
+        await notificationApi.createTemplate(editingTemplate);
       }
       setEditingTemplate(null);
       loadTemplates();
@@ -174,25 +231,15 @@ export function NotificationsTab() {
     }
   };
 
-  const handleDeleteTemplate = async (id: number) => {
-    if (!confirm('Delete this template?')) return;
-    try {
-      await notificationApi.deleteTemplate(id);
-      loadTemplates();
-      loadStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete template');
-    }
-  };
-
+  // Task handlers
   const handleSaveTask = async () => {
     if (!editingTask) return;
     setIsLoading(true);
     try {
-      if (editingTask.id) {
-        await notificationApi.updateTask(editingTask.id, editingTask);
+      if (editingTask.task_ID) {
+        await notificationApi.updateTask(editingTask.task_ID, editingTask);
       } else {
-        await notificationApi.createTask(editingTask as Omit<NotificationTask, 'id' | 'createdAt' | 'mailProfileName' | 'templateCode'>);
+        await notificationApi.createTask(editingTask);
       }
       setEditingTask(null);
       loadTasks();
@@ -204,20 +251,10 @@ export function NotificationsTab() {
     }
   };
 
-  const handleDeleteTask = async (id: number) => {
-    if (!confirm('Delete this task?')) return;
+  const handleRetryHistory = async (id: number) => {
     try {
-      await notificationApi.deleteTask(id);
-      loadTasks();
-      loadStats();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete task');
-    }
-  };
-
-  const handleRetryOutbox = async (id: number) => {
-    try {
-      await notificationApi.retryOutbox(id);
+      await notificationApi.retryHistory(id);
+      loadHistory(historyPage);
       loadOutbox(outboxPage);
       loadStats();
     } catch (err) {
@@ -236,7 +273,8 @@ export function NotificationsTab() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
@@ -291,11 +329,12 @@ export function NotificationsTab() {
       {/* Sub-tabs */}
       <div className="flex gap-2 flex-wrap">
         {[
-          { key: 'profiles', label: 'Mail Profiles', icon: Mail },
+          { key: 'profiles', label: 'Profiles', icon: Mail },
+          { key: 'apps', label: 'Applications', icon: Building2 },
           { key: 'templates', label: 'Templates', icon: FileText },
           { key: 'tasks', label: 'Tasks', icon: ListTodo },
           { key: 'outbox', label: 'Outbox', icon: Inbox },
-          { key: 'history', label: 'History', icon: History },
+          { key: 'history', label: 'Sent', icon: History },
         ].map(({ key, label, icon: Icon }) => (
           <button
             key={key}
@@ -311,6 +350,23 @@ export function NotificationsTab() {
           </button>
         ))}
       </div>
+
+      {/* App Selector for Templates/Tasks */}
+      {(subTab === 'templates' || subTab === 'tasks') && apps.length > 0 && (
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Filter by App:</label>
+          <select
+            value={selectedAppId || ''}
+            onChange={(e) => setSelectedAppId(e.target.value ? parseInt(e.target.value) : undefined)}
+            className="px-3 py-1.5 border rounded-lg text-sm"
+          >
+            <option value="">All Applications</option>
+            {apps.map((app) => (
+              <option key={app.app_ID} value={app.app_ID}>{app.app_Code} - {app.descr}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Content */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -334,9 +390,9 @@ export function NotificationsTab() {
             </div>
             <div className="divide-y divide-gray-200">
               {profiles.map((profile) => (
-                <div key={profile.id} className="p-4 flex items-center justify-between">
+                <div key={profile.profileId} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{profile.name}</p>
+                    <p className="font-medium">{profile.profileCode || `Profile ${profile.profileId}`}</p>
                     <p className="text-sm text-gray-500">
                       {profile.smtpHost}:{profile.smtpPort} ({profile.securityMode})
                     </p>
@@ -351,9 +407,6 @@ export function NotificationsTab() {
                     <button onClick={() => setEditingProfile(profile)} className="p-1 hover:bg-gray-100 rounded">
                       <Edit2 className="w-4 h-4 text-gray-500" />
                     </button>
-                    <button onClick={() => handleDeleteProfile(profile.id)} className="p-1 hover:bg-gray-100 rounded">
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </button>
                   </div>
                 </div>
               ))}
@@ -364,13 +417,49 @@ export function NotificationsTab() {
           </>
         )}
 
+        {/* Applications Tab */}
+        {!isLoading && subTab === 'apps' && (
+          <>
+            <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="font-semibold">Applications</h3>
+              <button
+                onClick={() => setEditingApp({})}
+                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4" /> Add Application
+              </button>
+            </div>
+            <div className="divide-y divide-gray-200">
+              {apps.map((app) => (
+                <div key={app.app_ID} className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{app.app_Code}</p>
+                    <p className="text-sm text-gray-500">{app.descr}</p>
+                    {app.profileID && (
+                      <p className="text-sm text-gray-400">
+                        Profile: {profiles.find(p => p.profileId === app.profileID)?.profileCode || app.profileID}
+                      </p>
+                    )}
+                  </div>
+                  <button onClick={() => setEditingApp(app)} className="p-1 hover:bg-gray-100 rounded">
+                    <Edit2 className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              ))}
+              {apps.length === 0 && (
+                <div className="p-8 text-center text-gray-500">No applications configured</div>
+              )}
+            </div>
+          </>
+        )}
+
         {/* Templates Tab */}
         {!isLoading && subTab === 'templates' && (
           <>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold">Notification Templates</h3>
+              <h3 className="font-semibold">Email Templates</h3>
               <button
-                onClick={() => setEditingTemplate({ type: 'Email', language: 'en', isActive: true, body: '' })}
+                onClick={() => setEditingTemplate({ lang_Code: 'en' })}
                 className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
               >
                 <Plus className="w-4 h-4" /> Add Template
@@ -378,29 +467,19 @@ export function NotificationsTab() {
             </div>
             <div className="divide-y divide-gray-200">
               {templates.map((template) => (
-                <div key={template.id} className="p-4 flex items-center justify-between">
+                <div key={template.eT_ID} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{template.name}</p>
+                    <p className="font-medium">{template.eT_Code}</p>
                     <p className="text-sm text-gray-500">
-                      {template.code} ({template.type}, {template.language})
+                      {template.subject} ({template.lang_Code})
                     </p>
-                    {template.subject && (
-                      <p className="text-sm text-gray-400 truncate max-w-md">{template.subject}</p>
+                    {template.app_Code && (
+                      <p className="text-sm text-gray-400">App: {template.app_Code}</p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-1 text-xs rounded-full ${
-                      template.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {template.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                    <button onClick={() => setEditingTemplate(template)} className="p-1 hover:bg-gray-100 rounded">
-                      <Edit2 className="w-4 h-4 text-gray-500" />
-                    </button>
-                    <button onClick={() => handleDeleteTemplate(template.id)} className="p-1 hover:bg-gray-100 rounded">
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </button>
-                  </div>
+                  <button onClick={() => setEditingTemplate(template)} className="p-1 hover:bg-gray-100 rounded">
+                    <Edit2 className="w-4 h-4 text-gray-500" />
+                  </button>
                 </div>
               ))}
               {templates.length === 0 && (
@@ -414,9 +493,9 @@ export function NotificationsTab() {
         {!isLoading && subTab === 'tasks' && (
           <>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold">Notification Tasks</h3>
+              <h3 className="font-semibold">Tasks</h3>
               <button
-                onClick={() => setEditingTask({ type: 'Email', status: 'Active', priority: 'Normal', maxRetries: 3 })}
+                onClick={() => setEditingTask({ taskType: 'Email', status: 'Active', langCode: 'en' })}
                 className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
               >
                 <Plus className="w-4 h-4" /> Add Task
@@ -424,15 +503,14 @@ export function NotificationsTab() {
             </div>
             <div className="divide-y divide-gray-200">
               {tasks.map((task) => (
-                <div key={task.id} className="p-4 flex items-center justify-between">
+                <div key={task.task_ID} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{task.name}</p>
+                    <p className="font-medium">{task.taskCode}</p>
                     <p className="text-sm text-gray-500">
-                      {task.code} ({task.type})
-                      {task.templateCode && <span className="ml-2">Template: {task.templateCode}</span>}
+                      {task.taskType} - {task.mailTo || task.mailFrom || '(no recipients)'}
                     </p>
-                    {task.mailProfileName && (
-                      <p className="text-sm text-gray-400">Profile: {task.mailProfileName}</p>
+                    {task.testMailTo && (
+                      <p className="text-sm text-gray-400">Test: {task.testMailTo}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -445,9 +523,6 @@ export function NotificationsTab() {
                     </span>
                     <button onClick={() => setEditingTask(task)} className="p-1 hover:bg-gray-100 rounded">
                       <Edit2 className="w-4 h-4 text-gray-500" />
-                    </button>
-                    <button onClick={() => handleDeleteTask(task.id)} className="p-1 hover:bg-gray-100 rounded">
-                      <Trash2 className="w-4 h-4 text-red-500" />
                     </button>
                   </div>
                 </div>
@@ -463,7 +538,7 @@ export function NotificationsTab() {
         {!isLoading && subTab === 'outbox' && (
           <>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold">Pending Messages ({outboxTotal})</h3>
+              <h3 className="font-semibold">Outbox ({outboxTotal})</h3>
               <button
                 onClick={() => loadOutbox(outboxPage)}
                 className="flex items-center gap-2 px-3 py-1.5 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
@@ -477,25 +552,18 @@ export function NotificationsTab() {
                   <div>
                     <p className="font-medium">{item.toList}</p>
                     <p className="text-sm text-gray-500">
-                      {item.subject || `(${item.type})`} - Attempts: {item.attempts}/{item.maxAttempts}
+                      {item.subject || item.taskCode || '(no subject)'} - Attempts: {item.attempts}
                     </p>
-                    {item.lastError && (
-                      <p className="text-sm text-red-500 truncate max-w-md">{item.lastError}</p>
-                    )}
                     <p className="text-xs text-gray-400">{formatDate(item.createdAt)}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 text-xs rounded-full ${
                       item.status === 'Pending' ? 'bg-blue-100 text-blue-700' :
-                      item.status === 'Processing' ? 'bg-yellow-100 text-yellow-700' :
                       item.status === 'Failed' ? 'bg-red-100 text-red-700' :
                       'bg-gray-100 text-gray-600'
                     }`}>
                       {item.status}
                     </span>
-                    <button onClick={() => handleRetryOutbox(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
-                      <RefreshCw className="w-4 h-4 text-blue-500" />
-                    </button>
                     <button onClick={() => handleDeleteOutbox(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Delete">
                       <Trash2 className="w-4 h-4 text-red-500" />
                     </button>
@@ -528,7 +596,7 @@ export function NotificationsTab() {
           </>
         )}
 
-        {/* History Tab */}
+        {/* History/Sent Tab */}
         {!isLoading && subTab === 'history' && (
           <>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
@@ -542,20 +610,29 @@ export function NotificationsTab() {
             </div>
             <div className="divide-y divide-gray-200">
               {historyItems.map((item) => (
-                <div key={item.id} className="p-4 flex items-center justify-between">
+                <div key={item.iD} className="p-4 flex items-center justify-between">
                   <div>
                     <p className="font-medium">{item.toList}</p>
-                    <p className="text-sm text-gray-500">{item.subject || `(${item.type})`}</p>
+                    <p className="text-sm text-gray-500">{item.subject || item.taskCode || '(no subject)'}</p>
                     <p className="text-xs text-gray-400">Sent: {formatDate(item.sentAt)}</p>
+                    {item.errorMessage && (
+                      <p className="text-xs text-red-500 truncate max-w-md">{item.errorMessage}</p>
+                    )}
                   </div>
-                  <span className={`px-2 py-1 text-xs rounded-full ${
-                    item.status === 'Sent' ? 'bg-green-100 text-green-700' :
-                    item.status === 'Delivered' ? 'bg-blue-100 text-blue-700' :
-                    item.status === 'Bounced' ? 'bg-yellow-100 text-yellow-700' :
-                    'bg-red-100 text-red-700'
-                  }`}>
-                    {item.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 text-xs rounded-full ${
+                      item.status === 'Sent' ? 'bg-green-100 text-green-700' :
+                      item.status === 'Failed' ? 'bg-red-100 text-red-700' :
+                      'bg-gray-100 text-gray-600'
+                    }`}>
+                      {item.status}
+                    </span>
+                    {item.status === 'Failed' && (
+                      <button onClick={() => handleRetryHistory(item.iD)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
+                        <RefreshCw className="w-4 h-4 text-blue-500" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
               {historyItems.length === 0 && (
@@ -590,18 +667,18 @@ export function NotificationsTab() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full m-4 max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold">{editingProfile.id ? 'Edit' : 'Add'} Mail Profile</h3>
+              <h3 className="font-semibold">{editingProfile.profileId ? 'Edit' : 'Add'} Mail Profile</h3>
               <button onClick={() => setEditingProfile(null)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Name</label>
+                <label className="block text-sm font-medium mb-1">Profile Code</label>
                 <input
                   type="text"
-                  value={editingProfile.name || ''}
-                  onChange={(e) => setEditingProfile({ ...editingProfile, name: e.target.value })}
+                  value={editingProfile.profileCode || ''}
+                  onChange={(e) => setEditingProfile({ ...editingProfile, profileCode: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="Primary SMTP"
+                  placeholder="PRIMARY_SMTP"
                 />
               </div>
               <div className="grid grid-cols-3 gap-4">
@@ -627,22 +704,22 @@ export function NotificationsTab() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Username</label>
+                  <label className="block text-sm font-medium mb-1">Auth User</label>
                   <input
                     type="text"
-                    value={editingProfile.username || ''}
-                    onChange={(e) => setEditingProfile({ ...editingProfile, username: e.target.value })}
+                    value={editingProfile.authUser || ''}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, authUser: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Password</label>
+                  <label className="block text-sm font-medium mb-1">Auth Secret Ref</label>
                   <input
-                    type="password"
-                    value={editingProfile.password || ''}
-                    onChange={(e) => setEditingProfile({ ...editingProfile, password: e.target.value })}
+                    type="text"
+                    value={editingProfile.authSecretRef || ''}
+                    onChange={(e) => setEditingProfile({ ...editingProfile, authSecretRef: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
-                    placeholder={editingProfile.id ? '(unchanged)' : ''}
+                    placeholder="Key vault reference"
                   />
                 </div>
               </div>
@@ -673,10 +750,18 @@ export function NotificationsTab() {
                   onChange={(e) => setEditingProfile({ ...editingProfile, securityMode: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
                 >
-                  <option value="None">None</option>
-                  <option value="SslOnConnect">SSL on Connect</option>
-                  <option value="StartTls">StartTLS (required)</option>
-                  <option value="StartTlsWhenAvailable">StartTLS (when available)</option>
+                  {securityModes.length > 0 ? (
+                    securityModes.map((m) => (
+                      <option key={m.value} value={m.value}>{m.text}</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="None">None</option>
+                      <option value="SslOnConnect">SSL on Connect</option>
+                      <option value="StartTls">StartTLS (required)</option>
+                      <option value="StartTlsWhenAvailable">StartTLS (when available)</option>
+                    </>
+                  )}
                 </select>
               </div>
               <label className="flex items-center gap-2">
@@ -696,68 +781,98 @@ export function NotificationsTab() {
         </div>
       )}
 
+      {/* App Edit Modal */}
+      {editingApp && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full m-4">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold">{editingApp.app_ID ? 'Edit' : 'Add'} Application</h3>
+              <button onClick={() => setEditingApp(null)}><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">App Code</label>
+                <input
+                  type="text"
+                  value={editingApp.app_Code || ''}
+                  onChange={(e) => setEditingApp({ ...editingApp, app_Code: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="PICKLEBALL_COMMUNITY"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <input
+                  type="text"
+                  value={editingApp.descr || ''}
+                  onChange={(e) => setEditingApp({ ...editingApp, descr: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Default Profile</label>
+                <select
+                  value={editingApp.profileID || ''}
+                  onChange={(e) => setEditingApp({ ...editingApp, profileID: e.target.value ? parseInt(e.target.value) : undefined })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">None</option>
+                  {profiles.map((p) => (
+                    <option key={p.profileId} value={p.profileId}>{p.profileCode}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button onClick={() => setEditingApp(null)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button onClick={handleSaveApp} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Template Edit Modal */}
       {editingTemplate && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full m-4 max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold">{editingTemplate.id ? 'Edit' : 'Add'} Template</h3>
+              <h3 className="font-semibold">{editingTemplate.eT_ID ? 'Edit' : 'Add'} Template</h3>
               <button onClick={() => setEditingTemplate(null)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Code</label>
+                  <label className="block text-sm font-medium mb-1">Template Code</label>
                   <input
                     type="text"
-                    value={editingTemplate.code || ''}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, code: e.target.value })}
+                    value={editingTemplate.eT_Code || ''}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, eT_Code: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
-                    placeholder="welcome_email"
+                    placeholder="WELCOME_EMAIL"
                   />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={editingTemplate.name || ''}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Type</label>
-                  <select
-                    value={editingTemplate.type || 'Email'}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, type: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="Email">Email</option>
-                    <option value="SMS">SMS</option>
-                    <option value="Push">Push</option>
-                  </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Language</label>
                   <input
                     type="text"
-                    value={editingTemplate.language || 'en'}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, language: e.target.value })}
+                    value={editingTemplate.lang_Code || 'en'}
+                    onChange={(e) => setEditingTemplate({ ...editingTemplate, lang_Code: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Site</label>
-                  <input
-                    type="text"
-                    value={editingTemplate.siteKey || ''}
-                    onChange={(e) => setEditingTemplate({ ...editingTemplate, siteKey: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                    placeholder="(all sites)"
-                  />
-                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">App Code</label>
+                <select
+                  value={editingTemplate.app_Code || ''}
+                  onChange={(e) => setEditingTemplate({ ...editingTemplate, app_Code: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
+                >
+                  <option value="">(Global)</option>
+                  {apps.map((a) => (
+                    <option key={a.app_ID} value={a.app_Code}>{a.app_Code}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Subject</label>
@@ -769,22 +884,14 @@ export function NotificationsTab() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Body (HTML)</label>
+                <label className="block text-sm font-medium mb-1">Body (HTML with Scriban)</label>
                 <textarea
                   value={editingTemplate.body || ''}
                   onChange={(e) => setEditingTemplate({ ...editingTemplate, body: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg font-mono text-sm"
-                  rows={10}
+                  rows={12}
                 />
               </div>
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={editingTemplate.isActive ?? true}
-                  onChange={(e) => setEditingTemplate({ ...editingTemplate, isActive: e.target.checked })}
-                />
-                <span className="text-sm">Active</span>
-              </label>
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
               <button onClick={() => setEditingTemplate(null)} className="px-4 py-2 border rounded-lg">Cancel</button>
@@ -799,43 +906,41 @@ export function NotificationsTab() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full m-4 max-h-[90vh] overflow-y-auto">
             <div className="p-4 border-b flex items-center justify-between">
-              <h3 className="font-semibold">{editingTask.id ? 'Edit' : 'Add'} Task</h3>
+              <h3 className="font-semibold">{editingTask.task_ID ? 'Edit' : 'Add'} Task</h3>
               <button onClick={() => setEditingTask(null)}><X className="w-5 h-5" /></button>
             </div>
             <div className="p-4 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Code</label>
+                  <label className="block text-sm font-medium mb-1">Task Code</label>
                   <input
                     type="text"
-                    value={editingTask.code || ''}
-                    onChange={(e) => setEditingTask({ ...editingTask, code: e.target.value })}
+                    value={editingTask.taskCode || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, taskCode: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1">Name</label>
-                  <input
-                    type="text"
-                    value={editingTask.name || ''}
-                    onChange={(e) => setEditingTask({ ...editingTask, name: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Type</label>
                   <select
-                    value={editingTask.type || 'Email'}
-                    onChange={(e) => setEditingTask({ ...editingTask, type: e.target.value })}
+                    value={editingTask.taskType || 'Email'}
+                    onChange={(e) => setEditingTask({ ...editingTask, taskType: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
-                    <option value="Email">Email</option>
-                    <option value="SMS">SMS</option>
-                    <option value="Push">Push</option>
+                    {taskTypes.length > 0 ? (
+                      taskTypes.map((t) => (
+                        <option key={t.value} value={t.value}>{t.text}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Email">Email</option>
+                        <option value="SMS">SMS</option>
+                      </>
+                    )}
                   </select>
                 </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Status</label>
                   <select
@@ -843,70 +948,124 @@ export function NotificationsTab() {
                     onChange={(e) => setEditingTask({ ...editingTask, status: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Testing">Testing</option>
-                    <option value="Inactive">Inactive</option>
+                    {taskStatuses.length > 0 ? (
+                      taskStatuses.map((s) => (
+                        <option key={s.value} value={s.value}>{s.text}</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Active">Active</option>
+                        <option value="Testing">Testing</option>
+                        <option value="Inactive">Inactive</option>
+                      </>
+                    )}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Priority</label>
-                  <select
-                    value={editingTask.priority || 'Normal'}
-                    onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value })}
+                  <label className="block text-sm font-medium mb-1">Language</label>
+                  <input
+                    type="text"
+                    value={editingTask.langCode || 'en'}
+                    onChange={(e) => setEditingTask({ ...editingTask, langCode: e.target.value })}
                     className="w-full px-3 py-2 border rounded-lg"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Normal">Normal</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
-                  </select>
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Mail Profile</label>
+                  <label className="block text-sm font-medium mb-1">Profile</label>
                   <select
-                    value={editingTask.mailProfileId || ''}
-                    onChange={(e) => setEditingTask({ ...editingTask, mailProfileId: e.target.value ? parseInt(e.target.value) : undefined })}
+                    value={editingTask.profileID || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, profileID: e.target.value ? parseInt(e.target.value) : undefined })}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
                     <option value="">Select...</option>
                     {profiles.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
+                      <option key={p.profileId} value={p.profileId}>{p.profileCode}</option>
                     ))}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Template</label>
                   <select
-                    value={editingTask.templateId || ''}
-                    onChange={(e) => setEditingTask({ ...editingTask, templateId: e.target.value ? parseInt(e.target.value) : undefined })}
+                    value={editingTask.templateID || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, templateID: e.target.value ? parseInt(e.target.value) : undefined })}
                     className="w-full px-3 py-2 border rounded-lg"
                   >
                     <option value="">Select...</option>
                     {templates.map((t) => (
-                      <option key={t.id} value={t.id}>{t.code} - {t.name}</option>
+                      <option key={t.eT_ID} value={t.eT_ID}>{t.eT_Code}</option>
                     ))}
                   </select>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Mail From</label>
+                  <input
+                    type="email"
+                    value={editingTask.mailFrom || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, mailFrom: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Mail From Name</label>
+                  <input
+                    type="text"
+                    value={editingTask.mailFromName || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, mailFromName: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Default Recipients</label>
+                <label className="block text-sm font-medium mb-1">Mail To</label>
                 <input
                   type="text"
-                  value={editingTask.defaultRecipients || ''}
-                  onChange={(e) => setEditingTask({ ...editingTask, defaultRecipients: e.target.value })}
+                  value={editingTask.mailTo || ''}
+                  onChange={(e) => setEditingTask({ ...editingTask, mailTo: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
-                  placeholder="Comma-separated emails"
+                  placeholder="Comma-separated or use + prefix to prepend"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">CC</label>
+                  <input
+                    type="text"
+                    value={editingTask.mailCC || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, mailCC: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">BCC</label>
+                  <input
+                    type="text"
+                    value={editingTask.mailBCC || ''}
+                    onChange={(e) => setEditingTask({ ...editingTask, mailBCC: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Test Mail To (used when Status = Testing)</label>
+                <input
+                  type="email"
+                  value={editingTask.testMailTo || ''}
+                  onChange={(e) => setEditingTask({ ...editingTask, testMailTo: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Test Email (used when Status = Testing)</label>
+                <label className="block text-sm font-medium mb-1">Attachment Proc Name</label>
                 <input
-                  type="email"
-                  value={editingTask.testEmail || ''}
-                  onChange={(e) => setEditingTask({ ...editingTask, testEmail: e.target.value })}
+                  type="text"
+                  value={editingTask.attachmentProcName || ''}
+                  onChange={(e) => setEditingTask({ ...editingTask, attachmentProcName: e.target.value })}
                   className="w-full px-3 py-2 border rounded-lg"
+                  placeholder="Optional stored procedure for attachments"
                 />
               </div>
             </div>

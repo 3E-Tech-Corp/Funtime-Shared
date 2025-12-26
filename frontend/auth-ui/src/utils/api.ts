@@ -434,101 +434,97 @@ export const assetApi = {
   },
 };
 
-// Notification types
+// Notification types - matching FXNotification database schema
+
 export interface MailProfile {
-  id: number;
-  name: string;
-  smtpHost: string;
-  smtpPort: number;
-  username?: string;
-  password?: string;
-  fromEmail: string;
+  profileId: number;
+  profileCode?: string;
+  app_ID?: number;
   fromName?: string;
-  securityMode: string;
+  fromEmail?: string;
+  smtpHost?: string;
+  smtpPort: number;
+  authUser?: string;
+  authSecretRef?: string;
+  securityMode?: string;
   isActive: boolean;
-  siteKey?: string;
-  createdAt: string;
-  updatedAt?: string;
 }
 
-export interface NotificationTemplate {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-  language: string;
+export interface AppRow {
+  app_ID: number;
+  app_Code?: string;
+  descr?: string;
+  profileID?: number;
+}
+
+export interface EmailTemplate {
+  eT_ID: number;
+  eT_Code?: string;
+  lang_Code?: string;
   subject?: string;
-  body: string;
-  bodyText?: string;
-  siteKey?: string;
-  isActive: boolean;
-  description?: string;
-  createdAt: string;
-  updatedAt?: string;
+  body?: string;
+  app_Code?: string;
 }
 
-export interface NotificationTask {
-  id: number;
-  code: string;
-  name: string;
-  type: string;
-  status: string;
-  priority: string;
-  mailProfileId?: number;
-  mailProfileName?: string;
-  templateId?: number;
-  templateCode?: string;
-  siteKey?: string;
-  defaultRecipients?: string;
-  ccRecipients?: string;
-  bccRecipients?: string;
-  testEmail?: string;
-  maxRetries: number;
-  description?: string;
-  createdAt: string;
+export interface TaskRow {
+  task_ID: number;
+  taskCode?: string;
+  taskType?: string;
+  app_ID?: number;
+  profileID?: number;
+  templateID?: number;
+  status?: string;
+  testMailTo?: string;
+  langCode?: string;
+  mailFromName?: string;
+  mailFrom?: string;
+  mailTo?: string;
+  mailCC?: string;
+  mailBCC?: string;
+  attachmentProcName?: string;
 }
 
-export interface NotificationOutbox {
+export interface OutboxRow {
   id: number;
   taskId?: number;
-  type: string;
-  toList: string;
+  taskCode?: string;
+  taskStatus?: string;
+  templateCode?: string;
+  langCode?: string;
+  emailFrom?: string;
+  emailFromName?: string;
+  mailPriority?: number;
+  objectId?: string;
+  toList?: string;
   ccList?: string;
   bccList?: string;
-  fromEmail?: string;
-  fromName?: string;
   subject?: string;
   bodyHtml?: string;
-  bodyText?: string;
-  status: string;
-  priority: string;
+  bodyJson?: string;
+  detailJson?: string;
   attempts: number;
-  maxAttempts: number;
-  lastError?: string;
-  scheduledAt?: string;
-  nextRetryAt?: string;
-  siteKey?: string;
-  userId?: number;
-  createdAt: string;
+  status?: string;
+  createdAt?: string;
 }
 
-export interface NotificationHistory {
-  id: number;
-  outboxId?: number;
+export interface HistoryRow {
+  iD: number;
   taskId?: number;
-  type: string;
-  toList: string;
-  fromEmail?: string;
+  taskCode?: string;
+  toList?: string;
+  ccList?: string;
+  bccList?: string;
   subject?: string;
-  status: string;
+  status?: string;
   attempts: number;
-  externalId?: string;
   errorMessage?: string;
-  siteKey?: string;
-  userId?: number;
-  sentAt: string;
-  deliveredAt?: string;
-  createdAt: string;
+  sentAt?: string;
+  createdAt?: string;
+}
+
+export interface LookupItem {
+  value?: string;
+  text?: string;
 }
 
 export interface NotificationStats {
@@ -544,7 +540,7 @@ export interface NotificationStats {
 }
 
 export interface OutboxListResponse {
-  items: NotificationOutbox[];
+  items: OutboxRow[];
   totalCount: number;
   page: number;
   pageSize: number;
@@ -552,14 +548,14 @@ export interface OutboxListResponse {
 }
 
 export interface HistoryListResponse {
-  items: NotificationHistory[];
+  items: HistoryRow[];
   totalCount: number;
   page: number;
   pageSize: number;
   totalPages: number;
 }
 
-// Notification API methods
+// Notification API methods - matching FXNotification stored procedures
 export const notificationApi = {
   // Stats
   async getStats(): Promise<NotificationStats> {
@@ -567,16 +563,11 @@ export const notificationApi = {
   },
 
   // Mail Profiles
-  async getProfiles(siteKey?: string): Promise<MailProfile[]> {
-    const params = siteKey ? `?siteKey=${siteKey}` : '';
-    return request(`/admin/notifications/profiles${params}`, { headers: getAuthHeaders() });
+  async getProfiles(): Promise<MailProfile[]> {
+    return request('/admin/notifications/profiles', { headers: getAuthHeaders() });
   },
 
-  async getProfile(id: number): Promise<MailProfile> {
-    return request(`/admin/notifications/profiles/${id}`, { headers: getAuthHeaders() });
-  },
-
-  async createProfile(profile: Omit<MailProfile, 'id' | 'createdAt' | 'updatedAt'>): Promise<MailProfile> {
+  async createProfile(profile: Partial<MailProfile>): Promise<MailProfile> {
     return request('/admin/notifications/profiles', {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -592,29 +583,34 @@ export const notificationApi = {
     });
   },
 
-  async deleteProfile(id: number): Promise<void> {
-    return request(`/admin/notifications/profiles/${id}`, {
-      method: 'DELETE',
+  // Applications
+  async getApps(): Promise<AppRow[]> {
+    return request('/admin/notifications/apps', { headers: getAuthHeaders() });
+  },
+
+  async createApp(app: Partial<AppRow>): Promise<AppRow> {
+    return request('/admin/notifications/apps', {
+      method: 'POST',
       headers: getAuthHeaders(),
+      body: JSON.stringify(app),
+    });
+  },
+
+  async updateApp(id: number, app: Partial<AppRow>): Promise<AppRow> {
+    return request(`/admin/notifications/apps/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(app),
     });
   },
 
   // Templates
-  async getTemplates(siteKey?: string, type?: string): Promise<NotificationTemplate[]> {
-    const params = new URLSearchParams();
-    if (siteKey) params.set('siteKey', siteKey);
-    if (type) params.set('type', type);
-    const queryString = params.toString();
-    return request(`/admin/notifications/templates${queryString ? `?${queryString}` : ''}`, {
-      headers: getAuthHeaders(),
-    });
+  async getTemplates(appId?: number): Promise<EmailTemplate[]> {
+    const params = appId ? `?appId=${appId}` : '';
+    return request(`/admin/notifications/templates${params}`, { headers: getAuthHeaders() });
   },
 
-  async getTemplate(id: number): Promise<NotificationTemplate> {
-    return request(`/admin/notifications/templates/${id}`, { headers: getAuthHeaders() });
-  },
-
-  async createTemplate(template: Omit<NotificationTemplate, 'id' | 'createdAt' | 'updatedAt'>): Promise<NotificationTemplate> {
+  async createTemplate(template: Partial<EmailTemplate>): Promise<EmailTemplate> {
     return request('/admin/notifications/templates', {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -622,7 +618,7 @@ export const notificationApi = {
     });
   },
 
-  async updateTemplate(id: number, template: Partial<NotificationTemplate>): Promise<NotificationTemplate> {
+  async updateTemplate(id: number, template: Partial<EmailTemplate>): Promise<EmailTemplate> {
     return request(`/admin/notifications/templates/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -630,29 +626,13 @@ export const notificationApi = {
     });
   },
 
-  async deleteTemplate(id: number): Promise<void> {
-    return request(`/admin/notifications/templates/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-  },
-
   // Tasks
-  async getTasks(siteKey?: string, status?: string): Promise<NotificationTask[]> {
-    const params = new URLSearchParams();
-    if (siteKey) params.set('siteKey', siteKey);
-    if (status) params.set('status', status);
-    const queryString = params.toString();
-    return request(`/admin/notifications/tasks${queryString ? `?${queryString}` : ''}`, {
-      headers: getAuthHeaders(),
-    });
+  async getTasks(appId?: number): Promise<TaskRow[]> {
+    const params = appId ? `?appId=${appId}` : '';
+    return request(`/admin/notifications/tasks${params}`, { headers: getAuthHeaders() });
   },
 
-  async getTask(id: number): Promise<NotificationTask> {
-    return request(`/admin/notifications/tasks/${id}`, { headers: getAuthHeaders() });
-  },
-
-  async createTask(task: Omit<NotificationTask, 'id' | 'createdAt' | 'mailProfileName' | 'templateCode'>): Promise<NotificationTask> {
+  async createTask(task: Partial<TaskRow>): Promise<TaskRow> {
     return request('/admin/notifications/tasks', {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -660,7 +640,7 @@ export const notificationApi = {
     });
   },
 
-  async updateTask(id: number, task: Partial<NotificationTask>): Promise<NotificationTask> {
+  async updateTask(id: number, task: Partial<TaskRow>): Promise<TaskRow> {
     return request(`/admin/notifications/tasks/${id}`, {
       method: 'PUT',
       headers: getAuthHeaders(),
@@ -668,33 +648,12 @@ export const notificationApi = {
     });
   },
 
-  async deleteTask(id: number): Promise<void> {
-    return request(`/admin/notifications/tasks/${id}`, {
-      method: 'DELETE',
-      headers: getAuthHeaders(),
-    });
-  },
-
   // Outbox
-  async getOutbox(options?: {
-    status?: string;
-    siteKey?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<OutboxListResponse> {
+  async getOutbox(options?: { page?: number; pageSize?: number }): Promise<OutboxListResponse> {
     const params = new URLSearchParams();
-    if (options?.status) params.set('status', options.status);
-    if (options?.siteKey) params.set('siteKey', options.siteKey);
     params.set('page', (options?.page || 1).toString());
     params.set('pageSize', (options?.pageSize || 20).toString());
     return request(`/admin/notifications/outbox?${params}`, { headers: getAuthHeaders() });
-  },
-
-  async retryOutbox(id: number): Promise<void> {
-    return request(`/admin/notifications/outbox/${id}/retry`, {
-      method: 'POST',
-      headers: getAuthHeaders(),
-    });
   },
 
   async deleteOutbox(id: number): Promise<void> {
@@ -704,29 +663,35 @@ export const notificationApi = {
     });
   },
 
-  async clearFailedOutbox(): Promise<void> {
-    return request('/admin/notifications/outbox/clear-failed', {
+  // History
+  async getHistory(options?: { page?: number; pageSize?: number }): Promise<HistoryListResponse> {
+    const params = new URLSearchParams();
+    params.set('page', (options?.page || 1).toString());
+    params.set('pageSize', (options?.pageSize || 20).toString());
+    return request(`/admin/notifications/history?${params}`, { headers: getAuthHeaders() });
+  },
+
+  async retryHistory(id: number): Promise<void> {
+    return request(`/admin/notifications/history/${id}/retry`, {
       method: 'POST',
       headers: getAuthHeaders(),
     });
   },
 
-  // History
-  async getHistory(options?: {
-    status?: string;
-    siteKey?: string;
-    fromDate?: string;
-    toDate?: string;
-    page?: number;
-    pageSize?: number;
-  }): Promise<HistoryListResponse> {
-    const params = new URLSearchParams();
-    if (options?.status) params.set('status', options.status);
-    if (options?.siteKey) params.set('siteKey', options.siteKey);
-    if (options?.fromDate) params.set('fromDate', options.fromDate);
-    if (options?.toDate) params.set('toDate', options.toDate);
-    params.set('page', (options?.page || 1).toString());
-    params.set('pageSize', (options?.pageSize || 20).toString());
-    return request(`/admin/notifications/history?${params}`, { headers: getAuthHeaders() });
+  // Lookups
+  async getSecurityModes(): Promise<LookupItem[]> {
+    return request('/admin/notifications/lookup/security-modes', { headers: getAuthHeaders() });
+  },
+
+  async getTaskStatuses(): Promise<LookupItem[]> {
+    return request('/admin/notifications/lookup/task-status', { headers: getAuthHeaders() });
+  },
+
+  async getTaskTypes(): Promise<LookupItem[]> {
+    return request('/admin/notifications/lookup/task-types', { headers: getAuthHeaders() });
+  },
+
+  async getTaskPriorities(): Promise<LookupItem[]> {
+    return request('/admin/notifications/lookup/task-priorities', { headers: getAuthHeaders() });
   },
 };
