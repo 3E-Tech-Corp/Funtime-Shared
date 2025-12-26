@@ -50,6 +50,12 @@ public class Asset
     public string? Category { get; set; }
 
     /// <summary>
+    /// Site key for organizing assets by site (e.g., "pickleball-community")
+    /// </summary>
+    [MaxLength(50)]
+    public string? SiteKey { get; set; }
+
+    /// <summary>
     /// User who uploaded the asset (nullable for system uploads)
     /// </summary>
     public int? UploadedBy { get; set; }

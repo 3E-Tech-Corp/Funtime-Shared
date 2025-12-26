@@ -376,13 +376,21 @@ export interface AssetInfo {
 // Asset API methods
 export const assetApi = {
   // Upload a file and get asset ID
-  async upload(file: File, category?: string, isPublic = true): Promise<AssetUploadResponse> {
+  async upload(
+    file: File,
+    options?: {
+      category?: string;
+      siteKey?: string;
+      isPublic?: boolean;
+    }
+  ): Promise<AssetUploadResponse> {
     const formData = new FormData();
     formData.append('file', file);
 
     const params = new URLSearchParams();
-    if (category) params.set('category', category);
-    params.set('isPublic', isPublic.toString());
+    if (options?.category) params.set('category', options.category);
+    if (options?.siteKey) params.set('siteKey', options.siteKey);
+    params.set('isPublic', (options?.isPublic ?? true).toString());
 
     const token = localStorage.getItem('auth_token');
     const response = await fetch(`${API_BASE_URL}/asset/upload?${params}`, {

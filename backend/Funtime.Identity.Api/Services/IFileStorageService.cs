@@ -10,7 +10,10 @@ public interface IFileStorageService
     /// <summary>
     /// Upload a file and return the storage URL
     /// </summary>
-    Task<string> UploadFileAsync(IFormFile file, string containerName);
+    /// <param name="file">The file to upload</param>
+    /// <param name="containerName">Category/container name (e.g., "logos", "avatars")</param>
+    /// <param name="siteKey">Optional site key for folder organization (e.g., "pickleball-community")</param>
+    Task<string> UploadFileAsync(IFormFile file, string containerName, string? siteKey = null);
 
     /// <summary>
     /// Delete a file from storage

@@ -34,6 +34,7 @@ public class AssetController : ControllerBase
     public async Task<ActionResult<AssetUploadResponse>> Upload(
         IFormFile file,
         [FromQuery] string? category = null,
+        [FromQuery] string? siteKey = null,
         [FromQuery] bool isPublic = true)
     {
         if (file == null || file.Length == 0)
@@ -63,8 +64,8 @@ public class AssetController : ControllerBase
 
         try
         {
-            // Upload to storage
-            var storageUrl = await _storageService.UploadFileAsync(file, containerName);
+            // Upload to storage (with site organization)
+            var storageUrl = await _storageService.UploadFileAsync(file, containerName, siteKey);
 
             // Create asset record
             var asset = new Asset
@@ -75,6 +76,7 @@ public class AssetController : ControllerBase
                 StorageUrl = storageUrl,
                 StorageType = _storageService.StorageType,
                 Category = category,
+                SiteKey = siteKey,
                 UploadedBy = userId,
                 IsPublic = isPublic
             };

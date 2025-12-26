@@ -7,6 +7,7 @@ interface AssetUploadModalProps {
   onClose: () => void;
   onUploadComplete: (asset: AssetUploadResponse) => void;
   category?: string;
+  siteKey?: string;
   acceptedTypes?: string;
   maxSizeMB?: number;
   title?: string;
@@ -17,6 +18,7 @@ export function AssetUploadModal({
   onClose,
   onUploadComplete,
   category,
+  siteKey,
   acceptedTypes = 'image/*',
   maxSizeMB = 5,
   title = 'Upload File',
@@ -76,7 +78,7 @@ export function AssetUploadModal({
     setError(null);
 
     try {
-      const result = await assetApi.upload(file, category);
+      const result = await assetApi.upload(file, { category, siteKey });
       onUploadComplete(result);
       handleClose();
     } catch (err) {
