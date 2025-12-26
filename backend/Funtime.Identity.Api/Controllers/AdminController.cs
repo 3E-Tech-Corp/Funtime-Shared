@@ -416,9 +416,3 @@ public class AdminController : ControllerBase
 
     #endregion
 }
-
-// Navigation property for User -> UserSites
-public partial class User
-{
-    public virtual ICollection<UserSite> UserSites { get; set; } = new List<UserSite>();
-}

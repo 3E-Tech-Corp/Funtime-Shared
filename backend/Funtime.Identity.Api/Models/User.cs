@@ -31,4 +31,7 @@ public class User
     public DateTime? UpdatedAt { get; set; }
 
     public DateTime? LastLoginAt { get; set; }
+
+    // Navigation properties
+    public virtual ICollection<UserSite> UserSites { get; set; } = new List<UserSite>();
 }
