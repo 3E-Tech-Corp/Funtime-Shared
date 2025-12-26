@@ -3,8 +3,6 @@ import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loade
 import { adminApi } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats } from '../utils/api';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-
 type Tab = 'overview' | 'sites' | 'users' | 'payments';
 
 export function AdminDashboardPage() {
@@ -305,7 +303,7 @@ export function AdminDashboardPage() {
                     <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                       {site.logoUrl ? (
                         <img
-                          src={`${API_BASE}${site.logoUrl}`}
+                          src={site.logoUrl}
                           alt={`${site.name} logo`}
                           className="w-full h-full object-cover"
                         />
@@ -660,7 +658,7 @@ export function AdminDashboardPage() {
                     <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
                       {editingSite.logoUrl ? (
                         <img
-                          src={`${API_BASE}${editingSite.logoUrl}`}
+                          src={editingSite.logoUrl}
                           alt="Site logo"
                           className="w-full h-full object-cover"
                         />

@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.DTOs;
 using Funtime.Identity.Api.Models;
+using Funtime.Identity.Api.Services;
 
 namespace Funtime.Identity.Api.Controllers;
 
@@ -13,11 +14,16 @@ namespace Funtime.Identity.Api.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
+    private readonly IFileStorageService _fileStorageService;
     private readonly ILogger<AdminController> _logger;
 
-    public AdminController(ApplicationDbContext context, ILogger<AdminController> logger)
+    public AdminController(
+        ApplicationDbContext context,
+        IFileStorageService fileStorageService,
+        ILogger<AdminController> logger)
     {
         _context = context;
+        _fileStorageService = fileStorageService;
         _logger = logger;
     }
 
@@ -172,33 +178,24 @@ public class AdminController : ControllerBase
             return BadRequest(new { message = "File size must be less than 5MB." });
         }
 
-        // Create uploads directory if it doesn't exist
-        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "logos");
-        Directory.CreateDirectory(uploadsDir);
-
-        // Generate unique filename
-        var extension = Path.GetExtension(file.FileName).ToLower();
-        var fileName = $"{key}{extension}";
-        var filePath = Path.Combine(uploadsDir, fileName);
-
         // Delete old file if exists
         if (!string.IsNullOrEmpty(site.LogoUrl))
         {
-            var oldFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", site.LogoUrl.TrimStart('/'));
-            if (System.IO.File.Exists(oldFilePath))
+            try
             {
-                System.IO.File.Delete(oldFilePath);
+                await _fileStorageService.DeleteFileAsync(site.LogoUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete old logo for site {SiteKey}", site.Key);
             }
         }
 
-        // Save the file
-        using (var stream = new FileStream(filePath, FileMode.Create))
-        {
-            await file.CopyToAsync(stream);
-        }
+        // Upload to S3
+        var logoUrl = await _fileStorageService.UploadFileAsync(file, "logos");
 
         // Update the site's logo URL
-        site.LogoUrl = $"/uploads/logos/{fileName}";
+        site.LogoUrl = logoUrl;
         site.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
@@ -233,13 +230,16 @@ public class AdminController : ControllerBase
             return NotFound(new { message = "Site not found." });
         }
 
-        // Delete the file if it exists
+        // Delete the file from S3
         if (!string.IsNullOrEmpty(site.LogoUrl))
         {
-            var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", site.LogoUrl.TrimStart('/'));
-            if (System.IO.File.Exists(filePath))
+            try
             {
-                System.IO.File.Delete(filePath);
+                await _fileStorageService.DeleteFileAsync(site.LogoUrl);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to delete logo from storage for site {SiteKey}", site.Key);
             }
         }
 
