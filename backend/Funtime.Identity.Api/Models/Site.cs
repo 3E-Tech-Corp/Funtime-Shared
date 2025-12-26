@@ -22,6 +22,12 @@ public class Site
     public string? Url { get; set; }
 
     /// <summary>
+    /// URL or path to the site's logo image
+    /// </summary>
+    [MaxLength(500)]
+    public string? LogoUrl { get; set; }
+
+    /// <summary>
     /// Whether the site is active and accessible
     /// </summary>
     public bool IsActive { get; set; } = true;

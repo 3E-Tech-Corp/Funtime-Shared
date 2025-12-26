@@ -113,6 +113,9 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+// Serve static files (for uploaded logos)
+app.UseStaticFiles();
+
 // CORS must be before other middleware
 app.UseCors("ConfiguredOrigins");
 

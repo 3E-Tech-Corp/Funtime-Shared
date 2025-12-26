@@ -38,6 +38,7 @@ public class AdminController : ControllerBase
                 Name = s.Name,
                 Description = s.Description,
                 Url = s.Url,
+                LogoUrl = s.LogoUrl,
                 IsActive = s.IsActive,
                 RequiresSubscription = s.RequiresSubscription,
                 MonthlyPriceCents = s.MonthlyPriceCents,
@@ -68,6 +69,7 @@ public class AdminController : ControllerBase
             Name = request.Name,
             Description = request.Description,
             Url = request.Url,
+            LogoUrl = request.LogoUrl,
             IsActive = request.IsActive,
             RequiresSubscription = request.RequiresSubscription,
             MonthlyPriceCents = request.MonthlyPriceCents,
@@ -86,6 +88,7 @@ public class AdminController : ControllerBase
             Name = site.Name,
             Description = site.Description,
             Url = site.Url,
+            LogoUrl = site.LogoUrl,
             IsActive = site.IsActive,
             RequiresSubscription = site.RequiresSubscription,
             MonthlyPriceCents = site.MonthlyPriceCents,
@@ -110,6 +113,7 @@ public class AdminController : ControllerBase
         site.Name = request.Name ?? site.Name;
         site.Description = request.Description ?? site.Description;
         site.Url = request.Url ?? site.Url;
+        site.LogoUrl = request.LogoUrl ?? site.LogoUrl;
         site.IsActive = request.IsActive ?? site.IsActive;
         site.RequiresSubscription = request.RequiresSubscription ?? site.RequiresSubscription;
         site.MonthlyPriceCents = request.MonthlyPriceCents ?? site.MonthlyPriceCents;
@@ -127,6 +131,131 @@ public class AdminController : ControllerBase
             Name = site.Name,
             Description = site.Description,
             Url = site.Url,
+            LogoUrl = site.LogoUrl,
+            IsActive = site.IsActive,
+            RequiresSubscription = site.RequiresSubscription,
+            MonthlyPriceCents = site.MonthlyPriceCents,
+            YearlyPriceCents = site.YearlyPriceCents,
+            DisplayOrder = site.DisplayOrder,
+            CreatedAt = site.CreatedAt,
+            UpdatedAt = site.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Upload a logo for a site
+    /// </summary>
+    [HttpPost("sites/{key}/logo")]
+    public async Task<ActionResult<SiteResponse>> UploadSiteLogo(string key, IFormFile file)
+    {
+        var site = await _context.Sites.FindAsync(key);
+        if (site == null)
+        {
+            return NotFound(new { message = "Site not found." });
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            return BadRequest(new { message = "No file uploaded." });
+        }
+
+        // Validate file type
+        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
+        if (!allowedTypes.Contains(file.ContentType.ToLower()))
+        {
+            return BadRequest(new { message = "Invalid file type. Allowed: JPEG, PNG, GIF, WebP, SVG" });
+        }
+
+        // Limit file size to 5MB
+        if (file.Length > 5 * 1024 * 1024)
+        {
+            return BadRequest(new { message = "File size must be less than 5MB." });
+        }
+
+        // Create uploads directory if it doesn't exist
+        var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "logos");
+        Directory.CreateDirectory(uploadsDir);
+
+        // Generate unique filename
+        var extension = Path.GetExtension(file.FileName).ToLower();
+        var fileName = $"{key}{extension}";
+        var filePath = Path.Combine(uploadsDir, fileName);
+
+        // Delete old file if exists
+        if (!string.IsNullOrEmpty(site.LogoUrl))
+        {
+            var oldFilePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", site.LogoUrl.TrimStart('/'));
+            if (System.IO.File.Exists(oldFilePath))
+            {
+                System.IO.File.Delete(oldFilePath);
+            }
+        }
+
+        // Save the file
+        using (var stream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(stream);
+        }
+
+        // Update the site's logo URL
+        site.LogoUrl = $"/uploads/logos/{fileName}";
+        site.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Logo uploaded for site {SiteKey}", site.Key);
+
+        return Ok(new SiteResponse
+        {
+            Key = site.Key,
+            Name = site.Name,
+            Description = site.Description,
+            Url = site.Url,
+            LogoUrl = site.LogoUrl,
+            IsActive = site.IsActive,
+            RequiresSubscription = site.RequiresSubscription,
+            MonthlyPriceCents = site.MonthlyPriceCents,
+            YearlyPriceCents = site.YearlyPriceCents,
+            DisplayOrder = site.DisplayOrder,
+            CreatedAt = site.CreatedAt,
+            UpdatedAt = site.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Delete a site's logo
+    /// </summary>
+    [HttpDelete("sites/{key}/logo")]
+    public async Task<ActionResult<SiteResponse>> DeleteSiteLogo(string key)
+    {
+        var site = await _context.Sites.FindAsync(key);
+        if (site == null)
+        {
+            return NotFound(new { message = "Site not found." });
+        }
+
+        // Delete the file if it exists
+        if (!string.IsNullOrEmpty(site.LogoUrl))
+        {
+            var filePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", site.LogoUrl.TrimStart('/'));
+            if (System.IO.File.Exists(filePath))
+            {
+                System.IO.File.Delete(filePath);
+            }
+        }
+
+        site.LogoUrl = null;
+        site.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Logo deleted for site {SiteKey}", site.Key);
+
+        return Ok(new SiteResponse
+        {
+            Key = site.Key,
+            Name = site.Name,
+            Description = site.Description,
+            Url = site.Url,
+            LogoUrl = site.LogoUrl,
             IsActive = site.IsActive,
             RequiresSubscription = site.RequiresSubscription,
             MonthlyPriceCents = site.MonthlyPriceCents,

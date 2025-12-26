@@ -10,6 +10,7 @@ public class SiteResponse
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string? Url { get; set; }
+    public string? LogoUrl { get; set; }
     public bool IsActive { get; set; }
     public bool RequiresSubscription { get; set; }
     public long? MonthlyPriceCents { get; set; }
@@ -35,6 +36,9 @@ public class CreateSiteRequest
     [MaxLength(255)]
     public string? Url { get; set; }
 
+    [MaxLength(500)]
+    public string? LogoUrl { get; set; }
+
     public bool IsActive { get; set; } = true;
     public bool RequiresSubscription { get; set; } = false;
     public long? MonthlyPriceCents { get; set; }
@@ -52,6 +56,9 @@ public class UpdateSiteRequest
 
     [MaxLength(255)]
     public string? Url { get; set; }
+
+    [MaxLength(500)]
+    public string? LogoUrl { get; set; }
 
     public bool? IsActive { get; set; }
     public bool? RequiresSubscription { get; set; }

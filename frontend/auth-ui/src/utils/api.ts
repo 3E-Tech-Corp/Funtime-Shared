@@ -132,6 +132,7 @@ export interface Site {
   name: string;
   description?: string;
   url?: string;
+  logoUrl?: string;
   isActive: boolean;
   requiresSubscription: boolean;
   monthlyPriceCents?: number;
@@ -262,6 +263,40 @@ export const adminApi = {
       headers: getAuthHeaders(),
       body: JSON.stringify(updates),
     });
+  },
+
+  async uploadSiteLogo(key: string, file: File): Promise<Site> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/admin/sites/${key}/logo`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  async deleteSiteLogo(key: string): Promise<Site> {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/admin/sites/${key}/logo`, {
+      method: 'DELETE',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Delete failed' }));
+      throw new Error(error.message || 'Delete failed');
+    }
+
+    return response.json();
   },
 
   // Users

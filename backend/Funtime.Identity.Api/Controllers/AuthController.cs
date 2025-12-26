@@ -1141,4 +1141,60 @@ public class AuthController : ControllerBase
             LastLoginAt = user.LastLoginAt
         };
     }
+
+    #region JWT Cross-Site Support
+
+    /// <summary>
+    /// Validate a JWT token - can be called by any Funtime site to verify tokens
+    /// </summary>
+    [HttpPost("validate-token")]
+    public ActionResult<TokenValidationResponse> ValidateToken([FromBody] TokenValidationRequest request)
+    {
+        var (isValid, userId, email, phoneNumber, systemRole, sites) = _jwtService.ValidateToken(request.Token);
+
+        if (!isValid)
+        {
+            return Ok(new TokenValidationResponse
+            {
+                IsValid = false,
+                Message = "Invalid or expired token"
+            });
+        }
+
+        return Ok(new TokenValidationResponse
+        {
+            IsValid = true,
+            UserId = userId,
+            Email = email,
+            PhoneNumber = phoneNumber,
+            SystemRole = systemRole,
+            Sites = sites,
+            Message = "Token is valid"
+        });
+    }
+
+    /// <summary>
+    /// Get JWT configuration for other sites to validate tokens locally
+    /// Protected by API key to prevent unauthorized access
+    /// </summary>
+    [HttpGet("jwt-config")]
+    public ActionResult<JwtConfigResponse> GetJwtConfig([FromHeader(Name = "X-Api-Key")] string? apiKey)
+    {
+        var configuredApiKey = _configuration["ApiSecretKey"];
+
+        if (string.IsNullOrEmpty(apiKey) || apiKey != configuredApiKey)
+        {
+            return Unauthorized(new { message = "Invalid or missing API key" });
+        }
+
+        return Ok(new JwtConfigResponse
+        {
+            Issuer = _configuration["Jwt:Issuer"]!,
+            Audience = _configuration["Jwt:Audience"]!,
+            Key = _configuration["Jwt:Key"]!,
+            ExpirationMinutes = int.Parse(_configuration["Jwt:ExpirationInMinutes"] ?? "60")
+        });
+    }
+
+    #endregion
 }

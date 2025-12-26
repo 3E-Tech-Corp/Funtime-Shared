@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
-import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2 } from 'lucide-react';
 import { adminApi } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats } from '../utils/api';
+
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 type Tab = 'overview' | 'sites' | 'users' | 'payments';
 
@@ -16,6 +18,8 @@ export function AdminDashboardPage() {
   // Sites state
   const [sites, setSites] = useState<Site[]>([]);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Users state
   const [userSearch, setUserSearch] = useState('');
@@ -122,6 +126,34 @@ export function AdminDashboardPage() {
       loadSites();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update site');
+    }
+  };
+
+  const handleLogoUpload = async (file: File) => {
+    if (!editingSite) return;
+    setUploadingLogo(true);
+    try {
+      const updatedSite = await adminApi.uploadSiteLogo(editingSite.key, file);
+      setEditingSite(updatedSite);
+      loadSites();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    if (!editingSite) return;
+    setUploadingLogo(true);
+    try {
+      const updatedSite = await adminApi.deleteSiteLogo(editingSite.key);
+      setEditingSite(updatedSite);
+      loadSites();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete logo');
+    } finally {
+      setUploadingLogo(false);
     }
   };
 
@@ -268,12 +300,24 @@ export function AdminDashboardPage() {
             ) : (
               <div className="divide-y divide-gray-200">
                 {sites.map((site) => (
-                  <div key={site.key} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                    <div className="flex-1">
+                  <div key={site.key} className="p-4 flex items-center gap-4 hover:bg-gray-50">
+                    {/* Logo */}
+                    <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                      {site.logoUrl ? (
+                        <img
+                          src={`${API_BASE}${site.logoUrl}`}
+                          alt={`${site.name} logo`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Globe className="w-6 h-6 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
                       <h3 className="font-medium text-gray-900">{site.name}</h3>
-                      <p className="text-sm text-gray-500">{site.key} • {site.url}</p>
+                      <p className="text-sm text-gray-500 truncate">{site.key} • {site.url}</p>
                       {site.description && (
-                        <p className="text-sm text-gray-400 mt-1">{site.description}</p>
+                        <p className="text-sm text-gray-400 mt-1 truncate">{site.description}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-4">
@@ -608,6 +652,60 @@ export function AdminDashboardPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                     rows={2}
                   />
+                </div>
+                {/* Logo Upload Section */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Logo</label>
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                      {editingSite.logoUrl ? (
+                        <img
+                          src={`${API_BASE}${editingSite.logoUrl}`}
+                          alt="Site logo"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Globe className="w-8 h-8 text-gray-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-2">
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleLogoUpload(file);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => logoInputRef.current?.click()}
+                        disabled={uploadingLogo}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {uploadingLogo ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Upload className="w-4 h-4" />
+                        )}
+                        {editingSite.logoUrl ? 'Change Logo' : 'Upload Logo'}
+                      </button>
+                      {editingSite.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={handleLogoDelete}
+                          disabled={uploadingLogo}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Remove Logo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Max 5MB. JPEG, PNG, GIF, WebP, or SVG.</p>
                 </div>
                 <div className="flex items-center gap-4">
                   <label className="flex items-center gap-2">

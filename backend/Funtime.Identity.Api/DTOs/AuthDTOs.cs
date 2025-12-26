@@ -353,3 +353,35 @@ public class PasswordResetRegisterRequest
     [MaxLength(100)]
     public string Password { get; set; } = string.Empty;
 }
+
+#region JWT Cross-Site Support
+
+// Token validation request
+public class TokenValidationRequest
+{
+    [Required]
+    public string Token { get; set; } = string.Empty;
+}
+
+// Token validation response
+public class TokenValidationResponse
+{
+    public bool IsValid { get; set; }
+    public int? UserId { get; set; }
+    public string? Email { get; set; }
+    public string? PhoneNumber { get; set; }
+    public string? SystemRole { get; set; }
+    public List<string>? Sites { get; set; }
+    public string? Message { get; set; }
+}
+
+// JWT configuration response (for other sites to validate tokens locally)
+public class JwtConfigResponse
+{
+    public string Issuer { get; set; } = string.Empty;
+    public string Audience { get; set; } = string.Empty;
+    public string Key { get; set; } = string.Empty;
+    public int ExpirationMinutes { get; set; }
+}
+
+#endregion
