@@ -2,6 +2,28 @@ namespace Funtime.Identity.Api.Services;
 
 public interface IFileStorageService
 {
+    /// <summary>
+    /// Storage type identifier ("local" or "s3")
+    /// </summary>
+    string StorageType { get; }
+
+    /// <summary>
+    /// Upload a file and return the storage URL
+    /// </summary>
     Task<string> UploadFileAsync(IFormFile file, string containerName);
+
+    /// <summary>
+    /// Delete a file from storage
+    /// </summary>
     Task DeleteFileAsync(string fileUrl);
+
+    /// <summary>
+    /// Get the file stream for a stored file (for serving)
+    /// </summary>
+    Task<Stream?> GetFileStreamAsync(string fileUrl);
+
+    /// <summary>
+    /// Check if a file exists
+    /// </summary>
+    Task<bool> FileExistsAsync(string fileUrl);
 }

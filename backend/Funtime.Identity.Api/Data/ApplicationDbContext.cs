@@ -28,6 +28,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<Payment> Payments { get; set; }
     public DbSet<Subscription> Subscriptions { get; set; }
 
+    // Asset tables
+    public DbSet<Asset> Assets { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -102,6 +105,14 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.StripeSubscriptionId).IsUnique();
             entity.HasIndex(e => e.PaymentCustomerId);
             entity.HasIndex(e => e.Status);
+        });
+
+        // Asset configuration
+        modelBuilder.Entity<Asset>(entity =>
+        {
+            entity.HasIndex(e => e.Category);
+            entity.HasIndex(e => e.UploadedBy);
+            entity.HasIndex(e => e.CreatedAt);
         });
     }
 }

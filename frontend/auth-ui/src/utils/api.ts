@@ -349,3 +349,79 @@ export const adminApi = {
     });
   },
 };
+
+// Asset types
+export interface AssetUploadResponse {
+  assetId: number;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  storageType: string;
+  url: string;
+}
+
+export interface AssetInfo {
+  id: number;
+  fileName: string;
+  contentType: string;
+  fileSize: number;
+  storageType: string;
+  category?: string;
+  uploadedBy?: number;
+  createdAt: string;
+  isPublic: boolean;
+  url: string;
+}
+
+// Asset API methods
+export const assetApi = {
+  // Upload a file and get asset ID
+  async upload(file: File, category?: string, isPublic = true): Promise<AssetUploadResponse> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const params = new URLSearchParams();
+    if (category) params.set('category', category);
+    params.set('isPublic', isPublic.toString());
+
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/asset/upload?${params}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Upload failed' }));
+      throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  // Get asset info by ID
+  async getInfo(id: number): Promise<AssetInfo> {
+    return request(`/asset/${id}/info`, {
+      headers: getAuthHeaders(),
+    });
+  },
+
+  // Get the URL to access an asset
+  getUrl(id: number): string {
+    return `${API_BASE_URL}/asset/${id}`;
+  },
+
+  // Delete an asset
+  async delete(id: number): Promise<void> {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/asset/${id}`, {
+      method: 'DELETE',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Delete failed' }));
+      throw new Error(error.message || 'Delete failed');
+    }
+  },
+};

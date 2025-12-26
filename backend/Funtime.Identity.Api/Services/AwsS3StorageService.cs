@@ -1,4 +1,5 @@
 using Amazon.S3;
+using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 
 namespace Funtime.Identity.Api.Services;
@@ -7,6 +8,8 @@ public class AwsS3StorageService : IFileStorageService
 {
     private readonly IAmazonS3 _s3Client;
     private readonly string _bucketName;
+
+    public string StorageType => "s3";
 
     public AwsS3StorageService(IConfiguration configuration)
     {
@@ -45,10 +48,56 @@ public class AwsS3StorageService : IFileStorageService
     {
         if (string.IsNullOrEmpty(fileUrl)) return;
 
-        // Extract key from URL: https://bucket.s3.amazonaws.com/container/filename
-        var uri = new Uri(fileUrl);
-        var key = uri.AbsolutePath.TrimStart('/');
+        var key = ExtractKeyFromUrl(fileUrl);
+        if (key == null) return;
 
         await _s3Client.DeleteObjectAsync(_bucketName, key);
+    }
+
+    public async Task<Stream?> GetFileStreamAsync(string fileUrl)
+    {
+        if (string.IsNullOrEmpty(fileUrl)) return null;
+
+        var key = ExtractKeyFromUrl(fileUrl);
+        if (key == null) return null;
+
+        try
+        {
+            var response = await _s3Client.GetObjectAsync(_bucketName, key);
+            return response.ResponseStream;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+    }
+
+    public async Task<bool> FileExistsAsync(string fileUrl)
+    {
+        if (string.IsNullOrEmpty(fileUrl)) return false;
+
+        var key = ExtractKeyFromUrl(fileUrl);
+        if (key == null) return false;
+
+        try
+        {
+            await _s3Client.GetObjectMetadataAsync(_bucketName, key);
+            return true;
+        }
+        catch (AmazonS3Exception ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            return false;
+        }
+    }
+
+    private string? ExtractKeyFromUrl(string fileUrl)
+    {
+        // Handle both full S3 URLs and relative paths
+        if (fileUrl.StartsWith("https://"))
+        {
+            var uri = new Uri(fileUrl);
+            return uri.AbsolutePath.TrimStart('/');
+        }
+        return fileUrl.TrimStart('/');
     }
 }

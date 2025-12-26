@@ -40,7 +40,17 @@ builder.Services.AddScoped<IOtpService, OtpService>();
 builder.Services.AddScoped<ISmsService, TwilioSmsService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IStripeService, StripeService>();
-builder.Services.AddScoped<IFileStorageService, AwsS3StorageService>();
+
+// File Storage - configurable between local and S3
+var storageType = builder.Configuration["Storage:Type"] ?? "local";
+if (storageType.Equals("s3", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddScoped<IFileStorageService, AwsS3StorageService>();
+}
+else
+{
+    builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+}
 
 // Controllers
 builder.Services.AddControllers();

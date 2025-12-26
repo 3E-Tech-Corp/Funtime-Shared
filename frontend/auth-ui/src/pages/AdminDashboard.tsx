@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2 } from 'lucide-react';
-import { adminApi } from '../utils/api';
-import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats } from '../utils/api';
+import { adminApi, assetApi } from '../utils/api';
+import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse } from '../utils/api';
+import { AssetUploadModal } from '../components/AssetUploadModal';
 
 type Tab = 'overview' | 'sites' | 'users' | 'payments';
 
@@ -17,7 +18,7 @@ export function AdminDashboardPage() {
   const [sites, setSites] = useState<Site[]>([]);
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [showLogoUpload, setShowLogoUpload] = useState(false);
 
   // Users state
   const [userSearch, setUserSearch] = useState('');
@@ -127,15 +128,18 @@ export function AdminDashboardPage() {
     }
   };
 
-  const handleLogoUpload = async (file: File) => {
+  const handleLogoUploadComplete = async (asset: AssetUploadResponse) => {
     if (!editingSite) return;
     setUploadingLogo(true);
     try {
-      const updatedSite = await adminApi.uploadSiteLogo(editingSite.key, file);
+      // Update site with the new asset URL
+      const logoUrl = assetApi.getUrl(asset.assetId);
+      const updatedSite = await adminApi.updateSite(editingSite.key, { logoUrl });
       setEditingSite(updatedSite);
+      setShowLogoUpload(false);
       loadSites();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to upload logo');
+      setError(err instanceof Error ? err.message : 'Failed to update site logo');
     } finally {
       setUploadingLogo(false);
     }
@@ -145,7 +149,8 @@ export function AdminDashboardPage() {
     if (!editingSite) return;
     setUploadingLogo(true);
     try {
-      const updatedSite = await adminApi.deleteSiteLogo(editingSite.key);
+      // Clear the logo URL from the site
+      const updatedSite = await adminApi.updateSite(editingSite.key, { logoUrl: '' });
       setEditingSite(updatedSite);
       loadSites();
     } catch (err) {
@@ -667,19 +672,9 @@ export function AdminDashboardPage() {
                       )}
                     </div>
                     <div className="flex-1 space-y-2">
-                      <input
-                        ref={logoInputRef}
-                        type="file"
-                        accept="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleLogoUpload(file);
-                        }}
-                      />
                       <button
                         type="button"
-                        onClick={() => logoInputRef.current?.click()}
+                        onClick={() => setShowLogoUpload(true)}
                         disabled={uploadingLogo}
                         className="flex items-center gap-2 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
                       >
@@ -744,6 +739,17 @@ export function AdminDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* Logo Upload Modal */}
+        <AssetUploadModal
+          isOpen={showLogoUpload}
+          onClose={() => setShowLogoUpload(false)}
+          onUploadComplete={handleLogoUploadComplete}
+          category="logos"
+          acceptedTypes="image/jpeg,image/png,image/gif,image/webp,image/svg+xml"
+          maxSizeMB={5}
+          title="Upload Site Logo"
+        />
       </div>
     </div>
   );
