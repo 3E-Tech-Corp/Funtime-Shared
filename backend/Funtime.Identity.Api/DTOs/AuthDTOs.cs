@@ -27,6 +27,27 @@ public class LoginRequest
     public string Password { get; set; } = string.Empty;
 }
 
+// Phone/Password Login
+public class PhoneLoginRequest
+{
+    [Required]
+    [MaxLength(20)]
+    public string PhoneNumber { get; set; } = string.Empty;
+
+    [Required]
+    public string Password { get; set; } = string.Empty;
+}
+
+// Public site info (no auth required)
+public class PublicSiteResponse
+{
+    public string Key { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string? Url { get; set; }
+    public string? LogoUrl { get; set; }
+}
+
 // OTP Send Request
 public class OtpSendRequest
 {

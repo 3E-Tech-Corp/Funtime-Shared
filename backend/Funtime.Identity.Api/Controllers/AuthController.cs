@@ -33,6 +33,29 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// Get all active sites (public endpoint for site selection)
+    /// </summary>
+    [HttpGet("sites")]
+    public async Task<ActionResult<List<PublicSiteResponse>>> GetPublicSites()
+    {
+        var sites = await _context.Sites
+            .Where(s => s.IsActive)
+            .OrderBy(s => s.DisplayOrder)
+            .ThenBy(s => s.Name)
+            .Select(s => new PublicSiteResponse
+            {
+                Key = s.Key,
+                Name = s.Name,
+                Description = s.Description,
+                Url = s.Url,
+                LogoUrl = s.LogoUrl
+            })
+            .ToListAsync();
+
+        return Ok(sites);
+    }
+
+    /// <summary>
     /// Register a new user with email and password
     /// </summary>
     [HttpPost("register")]
@@ -110,6 +133,52 @@ public class AuthController : ControllerBase
         var token = _jwtService.GenerateToken(user);
 
         _logger.LogInformation("User logged in successfully: {Email}", user.Email);
+
+        return Ok(new AuthResponse
+        {
+            Success = true,
+            Token = token,
+            Message = "Login successful.",
+            User = MapToUserResponse(user)
+        });
+    }
+
+    /// <summary>
+    /// Login with phone number and password
+    /// </summary>
+    [HttpPost("login/phone")]
+    public async Task<ActionResult<AuthResponse>> LoginWithPhone([FromBody] PhoneLoginRequest request)
+    {
+        var normalizedPhone = NormalizePhoneNumber(request.PhoneNumber);
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone);
+
+        if (user == null || string.IsNullOrEmpty(user.PasswordHash))
+        {
+            return Unauthorized(new AuthResponse
+            {
+                Success = false,
+                Message = "Invalid phone number or password."
+            });
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
+        {
+            return Unauthorized(new AuthResponse
+            {
+                Success = false,
+                Message = "Invalid phone number or password."
+            });
+        }
+
+        // Update last login
+        user.LastLoginAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        var token = _jwtService.GenerateToken(user);
+
+        _logger.LogInformation("User logged in with phone: {PhoneNumber}", normalizedPhone);
 
         return Ok(new AuthResponse
         {

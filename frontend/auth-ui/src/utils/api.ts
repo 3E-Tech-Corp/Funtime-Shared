@@ -43,13 +43,35 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   return data;
 }
 
+// Public site info
+export interface PublicSite {
+  key: string;
+  name: string;
+  description?: string;
+  url?: string;
+  logoUrl?: string;
+}
+
 // Auth API methods
 export const authApi = {
+  // Get public sites (no auth required)
+  async getSites(): Promise<PublicSite[]> {
+    return request('/auth/sites', {});
+  },
+
   // Login with email and password
   async login(email: string, password: string): Promise<AuthResponse> {
     return request('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
+    });
+  },
+
+  // Login with phone number and password
+  async loginWithPhone(phoneNumber: string, password: string): Promise<AuthResponse> {
+    return request('/auth/login/phone', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber, password }),
     });
   },
 
