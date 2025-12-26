@@ -1187,13 +1187,29 @@ public class AuthController : ControllerBase
         // Remove any non-digit characters except +
         var normalized = new string(phoneNumber.Where(c => char.IsDigit(c) || c == '+').ToArray());
 
-        // Ensure it starts with +
-        if (!normalized.StartsWith('+'))
+        // If already starts with +, use as-is
+        if (normalized.StartsWith('+'))
         {
-            normalized = '+' + normalized;
+            return normalized;
         }
 
-        return normalized;
+        // Remove leading + if any (shouldn't happen but just in case)
+        var digits = new string(normalized.Where(char.IsDigit).ToArray());
+
+        // If 10 digits, assume US number and add +1
+        if (digits.Length == 10)
+        {
+            return "+1" + digits;
+        }
+
+        // If 11 digits starting with 1, assume US number with country code
+        if (digits.Length == 11 && digits.StartsWith('1'))
+        {
+            return "+" + digits;
+        }
+
+        // Otherwise just add + prefix
+        return "+" + digits;
     }
 
     private static UserResponse MapToUserResponse(User user)
