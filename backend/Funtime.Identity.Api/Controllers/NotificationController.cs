@@ -11,10 +11,10 @@ namespace Funtime.Identity.Api.Controllers;
 [Authorize(Roles = "SU")]
 public class NotificationController : ControllerBase
 {
-    private readonly ApplicationDbContext _context;
+    private readonly NotificationDbContext _context;
     private readonly ILogger<NotificationController> _logger;
 
-    public NotificationController(ApplicationDbContext context, ILogger<NotificationController> logger)
+    public NotificationController(NotificationDbContext context, ILogger<NotificationController> logger)
     {
         _context = context;
         _logger = logger;

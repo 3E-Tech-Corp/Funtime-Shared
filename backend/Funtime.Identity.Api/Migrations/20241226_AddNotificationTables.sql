@@ -1,4 +1,5 @@
 -- Migration: Add Notification tables
+-- Database: fxEmail (NotificationConnection)
 -- Date: 2024-12-26
 
 -- MailProfiles table
