@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Stripe;
 using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.DTOs;
 using Funtime.Identity.Api.Models;
@@ -15,15 +16,18 @@ public class AdminController : ControllerBase
 {
     private readonly ApplicationDbContext _context;
     private readonly IFileStorageService _fileStorageService;
+    private readonly IStripeService _stripeService;
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
         ApplicationDbContext context,
         IFileStorageService fileStorageService,
+        IStripeService stripeService,
         ILogger<AdminController> logger)
     {
         _context = context;
         _fileStorageService = fileStorageService;
+        _stripeService = stripeService;
         _logger = logger;
     }
 
@@ -276,6 +280,7 @@ public class AdminController : ControllerBase
     [HttpGet("users")]
     public async Task<ActionResult<AdminUserListResponse>> SearchUsers(
         [FromQuery] string? search,
+        [FromQuery] string? siteKey,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20)
     {
@@ -287,6 +292,11 @@ public class AdminController : ControllerBase
             query = query.Where(u =>
                 (u.Email != null && u.Email.ToLower().Contains(searchLower)) ||
                 (u.PhoneNumber != null && u.PhoneNumber.Contains(search)));
+        }
+
+        if (!string.IsNullOrWhiteSpace(siteKey))
+        {
+            query = query.Where(u => u.UserSites.Any(us => us.SiteKey == siteKey));
         }
 
         var totalCount = await query.CountAsync();
@@ -504,6 +514,87 @@ public class AdminController : ControllerBase
             PageSize = pageSize,
             TotalPages = (int)Math.Ceiling((double)totalCount / pageSize)
         });
+    }
+
+    /// <summary>
+    /// Manually charge a user
+    /// </summary>
+    [HttpPost("payments/charge")]
+    public async Task<ActionResult<ManualChargeResponse>> ManualCharge([FromBody] ManualChargeRequest request)
+    {
+        // Verify user exists
+        var user = await _context.Users.FindAsync(request.UserId);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        try
+        {
+            // Get or create customer
+            var customer = await _stripeService.GetOrCreateCustomerAsync(request.UserId, user.Email);
+
+            // Create payment intent options
+            var paymentIntentOptions = new PaymentIntentCreateOptions
+            {
+                Amount = request.AmountCents,
+                Currency = request.Currency.ToLower(),
+                Customer = customer.StripeCustomerId,
+                Description = request.Description,
+                Metadata = new Dictionary<string, string>
+                {
+                    { "funtime_user_id", request.UserId.ToString() },
+                    { "site_key", request.SiteKey ?? "" },
+                    { "manual_charge", "true" },
+                    { "charged_by", User.Identity?.Name ?? "admin" }
+                }
+            };
+
+            // If payment method provided, confirm immediately
+            if (!string.IsNullOrWhiteSpace(request.PaymentMethodId))
+            {
+                paymentIntentOptions.PaymentMethod = request.PaymentMethodId;
+                paymentIntentOptions.Confirm = true;
+                paymentIntentOptions.OffSession = true;
+            }
+
+            var paymentIntentService = new PaymentIntentService();
+            var paymentIntent = await paymentIntentService.CreateAsync(paymentIntentOptions);
+
+            // Record payment in database
+            var payment = new Payment
+            {
+                PaymentCustomerId = customer.Id,
+                StripePaymentId = paymentIntent.Id,
+                AmountCents = request.AmountCents,
+                Currency = request.Currency.ToLower(),
+                Status = paymentIntent.Status,
+                Description = request.Description,
+                SiteKey = request.SiteKey,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Payments.Add(payment);
+            await _context.SaveChangesAsync();
+
+            _logger.LogInformation("Manual charge created for user {UserId}: {Amount} {Currency} - Status: {Status}",
+                request.UserId, request.AmountCents, request.Currency, paymentIntent.Status);
+
+            return Ok(new ManualChargeResponse
+            {
+                PaymentId = payment.Id,
+                StripePaymentIntentId = paymentIntent.Id,
+                Status = paymentIntent.Status,
+                AmountCents = request.AmountCents,
+                Currency = request.Currency.ToLower(),
+                ClientSecret = paymentIntent.ClientSecret
+            });
+        }
+        catch (StripeException ex)
+        {
+            _logger.LogError(ex, "Failed to create manual charge for user {UserId}", request.UserId);
+            return BadRequest(new { message = ex.Message });
+        }
     }
 
     #endregion

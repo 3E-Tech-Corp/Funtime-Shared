@@ -172,6 +172,39 @@ public class AdminPaymentListResponse
     public int TotalPages { get; set; }
 }
 
+public class ManualChargeRequest
+{
+    [Required]
+    public int UserId { get; set; }
+
+    [Required]
+    [Range(1, long.MaxValue, ErrorMessage = "Amount must be greater than 0")]
+    public long AmountCents { get; set; }
+
+    [Required]
+    [MaxLength(3)]
+    public string Currency { get; set; } = "usd";
+
+    [Required]
+    [MaxLength(500)]
+    public string Description { get; set; } = string.Empty;
+
+    [MaxLength(50)]
+    public string? SiteKey { get; set; }
+
+    public string? PaymentMethodId { get; set; }
+}
+
+public class ManualChargeResponse
+{
+    public int PaymentId { get; set; }
+    public string? StripePaymentIntentId { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public long AmountCents { get; set; }
+    public string Currency { get; set; } = string.Empty;
+    public string? ClientSecret { get; set; }
+}
+
 #endregion
 
 #region Stats
