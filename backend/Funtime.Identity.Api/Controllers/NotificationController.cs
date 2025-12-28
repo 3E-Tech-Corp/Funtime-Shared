@@ -576,8 +576,8 @@ public class NotificationController : ControllerBase
             var templateCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Email_Templates");
             var taskCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailTaskConfig");
             var activeTaskCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailTaskConfig WHERE Status = 'Active'");
-            var pendingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 'Pending'");
-            var failedCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 'Failed'");
+            var pendingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 1");
+            var failedCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 99");
 
             var today = DateTime.UtcNow.Date;
             var thisWeek = today.AddDays(-(int)today.DayOfWeek);
