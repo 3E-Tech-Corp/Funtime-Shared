@@ -12,6 +12,10 @@ desktop.ini
 *~
 .vs/
 
+*.csproj.user
+properties/
+.config/
+
 # Logs
 *.log
 logs/
