@@ -75,7 +75,7 @@ export function SiteLogoOverlay({
       {/* Site Logo Overlay - positioned at bottom-right, 50% size */}
       {hasSiteLogo && (
         <div
-          className={`absolute -bottom-1 -right-1 ${overlayScales[size]} bg-white rounded-md shadow-md border border-gray-200 p-0.5 flex items-center justify-center`}
+          className={`absolute -bottom-1 -right-1 ${overlayScales[size]} flex items-center justify-center`}
         >
           <img
             src={siteLogoUrl}
