@@ -132,19 +132,6 @@ export function AdminDashboardPage() {
     }
   };
 
-  const loadUserPayments = async (userId: number, page = 1) => {
-    setIsLoading(true);
-    try {
-      const data = await adminApi.getPayments({ userId, page, pageSize: 10 });
-      return data;
-    } catch (err) {
-      console.error('Failed to load user payments:', err);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSearchUsers = () => {
     loadUsers(userSearch, userSiteFilter);
   };

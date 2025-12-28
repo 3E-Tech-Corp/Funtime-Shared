@@ -380,7 +380,7 @@ export const adminApi = {
   },
 
   // Manual charge
-  async manualCharge(request: {
+  async manualCharge(chargeData: {
     userId: number;
     amountCents: number;
     currency?: string;
@@ -398,11 +398,11 @@ export const adminApi = {
       method: 'POST',
       headers: getAuthHeaders(),
       body: JSON.stringify({
-        userId: request.userId,
-        amountCents: request.amountCents,
-        currency: request.currency || 'usd',
-        description: request.description,
-        siteKey: request.siteKey,
+        userId: chargeData.userId,
+        amountCents: chargeData.amountCents,
+        currency: chargeData.currency || 'usd',
+        description: chargeData.description,
+        siteKey: chargeData.siteKey,
       }),
     });
   },
