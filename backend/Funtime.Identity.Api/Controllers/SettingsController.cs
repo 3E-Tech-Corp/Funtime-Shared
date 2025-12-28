@@ -161,6 +161,124 @@ public class SettingsController : ControllerBase
 
         return Ok(new { message = "Main logo deleted successfully." });
     }
+
+    /// <summary>
+    /// Get Terms of Service content (public endpoint)
+    /// </summary>
+    [HttpGet("terms-of-service")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LegalContentResponse>> GetTermsOfService()
+    {
+        var setting = await _context.Settings
+            .FirstOrDefaultAsync(s => s.Key == SettingKeys.TermsOfService);
+
+        return Ok(new LegalContentResponse
+        {
+            Content = setting?.Value ?? "",
+            UpdatedAt = setting?.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Update Terms of Service content (admin only)
+    /// </summary>
+    [HttpPut("terms-of-service")]
+    [Authorize(Roles = "SU")]
+    public async Task<ActionResult<LegalContentResponse>> UpdateTermsOfService([FromBody] LegalContentRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var setting = await _context.Settings
+            .FirstOrDefaultAsync(s => s.Key == SettingKeys.TermsOfService);
+
+        if (setting == null)
+        {
+            setting = new Setting
+            {
+                Key = SettingKeys.TermsOfService,
+                Value = request.Content ?? "",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = userId
+            };
+            _context.Settings.Add(setting);
+        }
+        else
+        {
+            setting.Value = request.Content ?? "";
+            setting.UpdatedAt = DateTime.UtcNow;
+            setting.UpdatedBy = userId;
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Terms of Service updated by user {UserId}", userId);
+
+        return Ok(new LegalContentResponse
+        {
+            Content = setting.Value,
+            UpdatedAt = setting.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Get Privacy Policy content (public endpoint)
+    /// </summary>
+    [HttpGet("privacy-policy")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LegalContentResponse>> GetPrivacyPolicy()
+    {
+        var setting = await _context.Settings
+            .FirstOrDefaultAsync(s => s.Key == SettingKeys.PrivacyPolicy);
+
+        return Ok(new LegalContentResponse
+        {
+            Content = setting?.Value ?? "",
+            UpdatedAt = setting?.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Update Privacy Policy content (admin only)
+    /// </summary>
+    [HttpPut("privacy-policy")]
+    [Authorize(Roles = "SU")]
+    public async Task<ActionResult<LegalContentResponse>> UpdatePrivacyPolicy([FromBody] LegalContentRequest request)
+    {
+        var userId = GetCurrentUserId();
+        var setting = await _context.Settings
+            .FirstOrDefaultAsync(s => s.Key == SettingKeys.PrivacyPolicy);
+
+        if (setting == null)
+        {
+            setting = new Setting
+            {
+                Key = SettingKeys.PrivacyPolicy,
+                Value = request.Content ?? "",
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedBy = userId
+            };
+            _context.Settings.Add(setting);
+        }
+        else
+        {
+            setting.Value = request.Content ?? "";
+            setting.UpdatedAt = DateTime.UtcNow;
+            setting.UpdatedBy = userId;
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("Privacy Policy updated by user {UserId}", userId);
+
+        return Ok(new LegalContentResponse
+        {
+            Content = setting.Value,
+            UpdatedAt = setting.UpdatedAt
+        });
+    }
+
+    private int? GetCurrentUserId()
+    {
+        var userIdClaim = User.FindFirst("sub")?.Value ?? User.FindFirst("id")?.Value;
+        return int.TryParse(userIdClaim, out var userId) ? userId : null;
+    }
 }
 
 public class MainLogoResponse
@@ -168,4 +286,15 @@ public class MainLogoResponse
     public bool HasLogo { get; set; }
     public string? LogoUrl { get; set; }
     public string? FileName { get; set; }
+}
+
+public class LegalContentResponse
+{
+    public string Content { get; set; } = "";
+    public DateTime? UpdatedAt { get; set; }
+}
+
+public class LegalContentRequest
+{
+    public string? Content { get; set; }
 }

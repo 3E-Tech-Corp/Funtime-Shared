@@ -850,6 +850,11 @@ export interface MainLogoResponse {
   fileName?: string;
 }
 
+export interface LegalContentResponse {
+  content: string;
+  updatedAt?: string;
+}
+
 export const settingsApi = {
   // Get main logo (public)
   async getMainLogo(): Promise<MainLogoResponse> {
@@ -903,5 +908,33 @@ export const settingsApi = {
     }
     // Logo URL is like /asset/123, need to prepend API base
     return `${API_BASE_URL}${logoUrl}`;
+  },
+
+  // Get Terms of Service (public)
+  async getTermsOfService(): Promise<LegalContentResponse> {
+    return request('/settings/terms-of-service');
+  },
+
+  // Update Terms of Service (admin only)
+  async updateTermsOfService(content: string): Promise<LegalContentResponse> {
+    return request('/settings/terms-of-service', {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  // Get Privacy Policy (public)
+  async getPrivacyPolicy(): Promise<LegalContentResponse> {
+    return request('/settings/privacy-policy');
+  },
+
+  // Update Privacy Policy (admin only)
+  async updatePrivacyPolicy(content: string): Promise<LegalContentResponse> {
+    return request('/settings/privacy-policy', {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ content }),
+    });
   },
 };

@@ -4,6 +4,8 @@ import { RegisterPage } from './pages/Register';
 import { ForgotPasswordPage } from './pages/ForgotPassword';
 import { SiteSelectionPage } from './pages/SiteSelection';
 import { AdminDashboardPage } from './pages/AdminDashboard';
+import { TermsOfServicePage } from './pages/TermsOfService';
+import { PrivacyPolicyPage } from './pages/PrivacyPolicy';
 
 function App() {
   return (
@@ -14,6 +16,8 @@ function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/sites" element={<SiteSelectionPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />
+        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         {/* Default redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

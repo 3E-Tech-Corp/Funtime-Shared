@@ -377,9 +377,23 @@ export function RegisterPage() {
           {/* Terms */}
           <p className="mt-5 text-xs text-gray-500 text-center">
             By creating an account, you agree to our{' '}
-            <a href="#" className="text-primary-600 hover:underline">Terms of Service</a>
+            <a
+              href="/terms-of-service"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 hover:underline"
+            >
+              Terms of Service
+            </a>
             {' '}and{' '}
-            <a href="#" className="text-primary-600 hover:underline">Privacy Policy</a>
+            <a
+              href="/privacy-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary-600 hover:underline"
+            >
+              Privacy Policy
+            </a>
           </p>
         </div>
 

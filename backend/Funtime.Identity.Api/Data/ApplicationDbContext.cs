@@ -31,6 +31,9 @@ public class ApplicationDbContext : DbContext
     // Asset tables
     public DbSet<Asset> Assets { get; set; }
 
+    // Settings tables
+    public DbSet<Setting> Settings { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -113,6 +116,12 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => e.Category);
             entity.HasIndex(e => e.UploadedBy);
             entity.HasIndex(e => e.CreatedAt);
+        });
+
+        // Setting configuration
+        modelBuilder.Entity<Setting>(entity =>
+        {
+            entity.HasIndex(e => e.Key).IsUnique();
         });
     }
 }

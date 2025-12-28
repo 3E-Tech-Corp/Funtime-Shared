@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image } from 'lucide-react';
+import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save } from 'lucide-react';
 import { adminApi, assetApi, settingsApi } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
@@ -65,6 +65,13 @@ export function AdminDashboardPage() {
   const [mainLogoLoading, setMainLogoLoading] = useState(false);
   const [uploadingMainLogo, setUploadingMainLogo] = useState(false);
 
+  // Legal content state
+  const [termsOfService, setTermsOfService] = useState('');
+  const [privacyPolicy, setPrivacyPolicy] = useState('');
+  const [legalContentLoading, setLegalContentLoading] = useState(false);
+  const [savingTerms, setSavingTerms] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     window.location.href = '/login';
@@ -80,6 +87,7 @@ export function AdminDashboardPage() {
   useEffect(() => {
     if (activeTab === 'payments') loadPayments();
     if (activeTab === 'settings' || activeTab === 'sites') loadMainLogo();
+    if (activeTab === 'settings') loadLegalContent();
   }, [activeTab]);
 
   const loadMainLogo = async () => {
@@ -95,6 +103,44 @@ export function AdminDashboardPage() {
       console.error('Failed to load main logo:', err);
     } finally {
       setMainLogoLoading(false);
+    }
+  };
+
+  const loadLegalContent = async () => {
+    setLegalContentLoading(true);
+    try {
+      const [tosResponse, privacyResponse] = await Promise.all([
+        settingsApi.getTermsOfService(),
+        settingsApi.getPrivacyPolicy(),
+      ]);
+      setTermsOfService(tosResponse.content || '');
+      setPrivacyPolicy(privacyResponse.content || '');
+    } catch (err) {
+      console.error('Failed to load legal content:', err);
+    } finally {
+      setLegalContentLoading(false);
+    }
+  };
+
+  const handleSaveTermsOfService = async () => {
+    setSavingTerms(true);
+    try {
+      await settingsApi.updateTermsOfService(termsOfService);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save Terms of Service');
+    } finally {
+      setSavingTerms(false);
+    }
+  };
+
+  const handleSavePrivacyPolicy = async () => {
+    setSavingPrivacy(true);
+    try {
+      await settingsApi.updatePrivacyPolicy(privacyPolicy);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save Privacy Policy');
+    } finally {
+      setSavingPrivacy(false);
     }
   };
 
@@ -1037,6 +1083,89 @@ export function AdminDashboardPage() {
                     </div>
                     <p className="text-xs text-gray-400 mt-2">
                       Recommended: Use a horizontal logo with transparent background. Max height: 40px when displayed.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Legal Content Section */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                  <FileText className="w-5 h-5 text-primary-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">Legal Content</h3>
+                  <p className="text-sm text-gray-500">Terms of Service and Privacy Policy displayed during registration</p>
+                </div>
+              </div>
+
+              {legalContentLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary-500" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Terms of Service */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Terms of Service
+                      </label>
+                      <button
+                        onClick={handleSaveTermsOfService}
+                        disabled={savingTerms}
+                        className="flex items-center gap-1 px-3 py-1 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
+                      >
+                        {savingTerms ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                    <textarea
+                      value={termsOfService}
+                      onChange={(e) => setTermsOfService(e.target.value)}
+                      placeholder="Enter your Terms of Service content here... (HTML supported)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono text-sm"
+                      rows={8}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      HTML formatting is supported. This will be displayed when users click "Terms of Service" during registration.
+                    </p>
+                  </div>
+
+                  {/* Privacy Policy */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Privacy Policy
+                      </label>
+                      <button
+                        onClick={handleSavePrivacyPolicy}
+                        disabled={savingPrivacy}
+                        className="flex items-center gap-1 px-3 py-1 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
+                      >
+                        {savingPrivacy ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Save className="w-4 h-4" />
+                        )}
+                        Save
+                      </button>
+                    </div>
+                    <textarea
+                      value={privacyPolicy}
+                      onChange={(e) => setPrivacyPolicy(e.target.value)}
+                      placeholder="Enter your Privacy Policy content here... (HTML supported)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 font-mono text-sm"
+                      rows={8}
+                    />
+                    <p className="text-xs text-gray-400 mt-1">
+                      HTML formatting is supported. This will be displayed when users click "Privacy Policy" during registration.
                     </p>
                   </div>
                 </div>
