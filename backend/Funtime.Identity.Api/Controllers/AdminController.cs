@@ -605,6 +605,28 @@ public class AdminController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Get payment methods for a user (admin only)
+    /// </summary>
+    [HttpGet("users/{userId}/payment-methods")]
+    public async Task<ActionResult<List<AdminPaymentMethodResponse>>> GetUserPaymentMethods(int userId)
+    {
+        var methods = await _stripeService.GetPaymentMethodsAsync(userId);
+
+        return Ok(methods.Select(m => new AdminPaymentMethodResponse
+        {
+            Id = m.Id,
+            StripePaymentMethodId = m.StripePaymentMethodId,
+            Type = m.Type,
+            CardBrand = m.CardBrand,
+            CardLast4 = m.CardLast4,
+            CardExpMonth = m.CardExpMonth,
+            CardExpYear = m.CardExpYear,
+            IsDefault = m.IsDefault,
+            CreatedAt = m.CreatedAt
+        }).ToList());
+    }
+
     #endregion
 
     #region Stats

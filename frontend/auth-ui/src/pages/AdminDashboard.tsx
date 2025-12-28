@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell } from 'lucide-react';
 import { adminApi, assetApi } from '../utils/api';
-import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse } from '../utils/api';
+import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
 import { NotificationsTab } from '../components/NotificationsTab';
+import { PaymentModal } from '../components/PaymentModal';
+
+// Stripe publishable key from environment
+const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
 
 type Tab = 'overview' | 'sites' | 'users' | 'payments' | 'notifications';
 
@@ -43,6 +47,12 @@ export function AdminDashboardPage() {
   const [chargeDescription, setChargeDescription] = useState('');
   const [chargeSiteKey, setChargeSiteKey] = useState('');
   const [isCharging, setIsCharging] = useState(false);
+
+  // Payment flow state
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentClientSecret, setPaymentClientSecret] = useState('');
+  const [paymentAmountCents, setPaymentAmountCents] = useState(0);
+  const [userPaymentMethods, setUserPaymentMethods] = useState<AdminPaymentMethod[]>([]);
 
   // User payments state (for user detail modal)
   const [userPayments, setUserPayments] = useState<AdminPayment[]>([]);
@@ -163,23 +173,58 @@ export function AdminDashboardPage() {
 
     setIsCharging(true);
     try {
-      await adminApi.manualCharge({
+      // First, get user's saved payment methods
+      const methods = await adminApi.getUserPaymentMethods(selectedUser.id);
+      setUserPaymentMethods(methods);
+
+      // Create payment intent
+      const result = await adminApi.createPaymentIntent({
         userId: selectedUser.id,
         amountCents,
         description: chargeDescription,
         siteKey: chargeSiteKey || undefined,
       });
-      setShowChargeModal(false);
-      setChargeAmount('');
-      setChargeDescription('');
-      setChargeSiteKey('');
-      // Reload user payments
-      handleLoadUserPayments(selectedUser.id);
+
+      if (result.clientSecret) {
+        // Show payment modal with Stripe Elements
+        setPaymentClientSecret(result.clientSecret);
+        setPaymentAmountCents(amountCents);
+        setShowChargeModal(false);
+        setShowPaymentModal(true);
+      } else if (result.status === 'succeeded') {
+        // Payment already succeeded (shouldn't happen without payment method, but handle it)
+        setShowChargeModal(false);
+        setChargeAmount('');
+        setChargeDescription('');
+        setChargeSiteKey('');
+        handleLoadUserPayments(selectedUser.id);
+      } else {
+        setError('Failed to create payment intent');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create charge');
     } finally {
       setIsCharging(false);
     }
+  };
+
+  const handlePaymentSuccess = (paymentIntentId: string) => {
+    console.log('Payment succeeded:', paymentIntentId);
+    setShowPaymentModal(false);
+    setPaymentClientSecret('');
+    setChargeAmount('');
+    setChargeDescription('');
+    setChargeSiteKey('');
+    // Reload user payments and stats
+    if (selectedUser) {
+      handleLoadUserPayments(selectedUser.id);
+    }
+    loadStats();
+  };
+
+  const handlePaymentModalClose = () => {
+    setShowPaymentModal(false);
+    setPaymentClientSecret('');
   };
 
   const handleUpdateSite = async (key: string, updates: Partial<Site>) => {
@@ -692,8 +737,13 @@ export function AdminDashboardPage() {
                                 ))}
                               </select>
                             </div>
+                            {!STRIPE_PUBLISHABLE_KEY && (
+                              <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
+                                Stripe key not configured. Set VITE_STRIPE_PUBLISHABLE_KEY to enable payments.
+                              </p>
+                            )}
                             <p className="text-sm text-gray-500">
-                              This will create a payment intent. The user will need to complete payment through their payment method.
+                              This will open the payment form where you can use a saved card or enter new payment details.
                             </p>
                             <div className="flex gap-2 pt-2">
                               <button
@@ -704,10 +754,10 @@ export function AdminDashboardPage() {
                               </button>
                               <button
                                 onClick={handleManualCharge}
-                                disabled={isCharging || !chargeAmount || !chargeDescription}
+                                disabled={isCharging || !chargeAmount || !chargeDescription || !STRIPE_PUBLISHABLE_KEY}
                                 className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
                               >
-                                {isCharging ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : `Charge ${chargeAmount ? formatCurrency(parseFloat(chargeAmount) * 100) : '$0.00'}`}
+                                {isCharging ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : `Continue to Payment (${chargeAmount ? formatCurrency(parseFloat(chargeAmount) * 100) : '$0.00'})`}
                               </button>
                             </div>
                           </div>
@@ -976,6 +1026,31 @@ export function AdminDashboardPage() {
           maxSizeMB={5}
           title="Upload Site Logo"
         />
+
+        {/* Stripe Payment Modal */}
+        {STRIPE_PUBLISHABLE_KEY && (
+          <PaymentModal
+            isOpen={showPaymentModal}
+            onClose={handlePaymentModalClose}
+            clientSecret={paymentClientSecret}
+            stripePublishableKey={STRIPE_PUBLISHABLE_KEY}
+            amountCents={paymentAmountCents}
+            currency="usd"
+            description={chargeDescription}
+            savedPaymentMethods={userPaymentMethods.map(pm => ({
+              id: pm.id,
+              stripePaymentMethodId: pm.stripePaymentMethodId,
+              type: pm.type || 'card',
+              cardBrand: pm.cardBrand,
+              cardLast4: pm.cardLast4,
+              cardExpMonth: pm.cardExpMonth,
+              cardExpYear: pm.cardExpYear,
+              isDefault: pm.isDefault,
+            }))}
+            onPaymentSuccess={handlePaymentSuccess}
+            onPaymentError={(err) => setError(err)}
+          />
+        )}
       </div>
     </div>
   );

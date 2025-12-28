@@ -379,8 +379,15 @@ export const adminApi = {
     });
   },
 
-  // Manual charge
-  async manualCharge(chargeData: {
+  // Get user's payment methods
+  async getUserPaymentMethods(userId: number): Promise<AdminPaymentMethod[]> {
+    return request(`/admin/users/${userId}/payment-methods`, {
+      headers: getAuthHeaders(),
+    });
+  },
+
+  // Create payment intent (returns clientSecret for Stripe Elements)
+  async createPaymentIntent(chargeData: {
     userId: number;
     amountCents: number;
     currency?: string;
@@ -406,7 +413,49 @@ export const adminApi = {
       }),
     });
   },
+
+  // Charge using saved payment method (immediate charge)
+  async chargeWithPaymentMethod(chargeData: {
+    userId: number;
+    amountCents: number;
+    currency?: string;
+    description: string;
+    siteKey?: string;
+    paymentMethodId: string;
+  }): Promise<{
+    paymentId: number;
+    stripePaymentIntentId?: string;
+    status: string;
+    amountCents: number;
+    currency: string;
+  }> {
+    return request(`/admin/payments/charge`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        userId: chargeData.userId,
+        amountCents: chargeData.amountCents,
+        currency: chargeData.currency || 'usd',
+        description: chargeData.description,
+        siteKey: chargeData.siteKey,
+        paymentMethodId: chargeData.paymentMethodId,
+      }),
+    });
+  },
 };
+
+// Admin payment method type
+export interface AdminPaymentMethod {
+  id: number;
+  stripePaymentMethodId: string;
+  type?: string;
+  cardBrand?: string;
+  cardLast4?: string;
+  cardExpMonth?: number;
+  cardExpYear?: number;
+  isDefault: boolean;
+  createdAt: string;
+}
 
 // Asset types
 export interface AssetUploadResponse {

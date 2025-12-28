@@ -205,6 +205,19 @@ public class ManualChargeResponse
     public string? ClientSecret { get; set; }
 }
 
+public class AdminPaymentMethodResponse
+{
+    public int Id { get; set; }
+    public string StripePaymentMethodId { get; set; } = string.Empty;
+    public string? Type { get; set; }
+    public string? CardBrand { get; set; }
+    public string? CardLast4 { get; set; }
+    public int? CardExpMonth { get; set; }
+    public int? CardExpYear { get; set; }
+    public bool IsDefault { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
 #endregion
 
 #region Stats
