@@ -2,18 +2,30 @@
 
 Shared authentication UI for the Funtime Pickleball platform. This UI serves multiple sites (pickleball.community, pickleball.college, pickleball.date, pickleball.jobs) with site-specific branding.
 
+## Production URLs
+
+| Service | URL |
+|---------|-----|
+| **Auth UI** | https://shared.funtimepb.com |
+| **API** | https://shared.funtimepb.com/api |
+
+Example login link for production:
+```
+https://shared.funtimepb.com/login?site=community&redirect=https://pickleball.community/auth/callback
+```
+
 ## Quick Start for External Sites
 
 ### 1. Link to Auth-UI
 
 ```html
 <!-- Login link -->
-<a href="https://auth.example.com/login?site=community&redirect=https://pickleball.community/auth/callback">
+<a href="https://shared.funtimepb.com/login?site=community&redirect=https://pickleball.community/auth/callback">
   Login
 </a>
 
 <!-- Register link -->
-<a href="https://auth.example.com/register?site=community&redirect=https://pickleball.community/auth/callback">
+<a href="https://shared.funtimepb.com/register?site=community&redirect=https://pickleball.community/auth/callback">
   Sign Up
 </a>
 ```
@@ -48,7 +60,7 @@ if (token) {
 ### 3. Make Authenticated API Requests
 
 ```javascript
-fetch('https://api.example.com/user/profile', {
+fetch('https://shared.funtimepb.com/api/user/profile', {
   headers: {
     'Authorization': `Bearer ${token}`,
     'Content-Type': 'application/json'
@@ -136,7 +148,7 @@ The UI uses `/config.js` for runtime configuration:
 ```javascript
 // /config.js (served at web root)
 window.__FUNTIME_CONFIG__ = {
-  API_URL: "https://api.funtime.com",
+  API_URL: "https://shared.funtimepb.com/api",
   STRIPE_PUBLISHABLE_KEY: "pk_live_..."
 };
 ```
