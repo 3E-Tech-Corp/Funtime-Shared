@@ -5,9 +5,10 @@ import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetU
 import { AssetUploadModal } from '../components/AssetUploadModal';
 import { NotificationsTab } from '../components/NotificationsTab';
 import { PaymentModal } from '../components/PaymentModal';
+import { config } from '../utils/config';
 
-// Stripe publishable key from environment
-const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || '';
+// Stripe publishable key from runtime config
+const STRIPE_PUBLISHABLE_KEY = config.STRIPE_PUBLISHABLE_KEY;
 
 type Tab = 'overview' | 'sites' | 'users' | 'payments' | 'notifications';
 
@@ -739,7 +740,7 @@ export function AdminDashboardPage() {
                             </div>
                             {!STRIPE_PUBLISHABLE_KEY && (
                               <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                                Stripe key not configured. Set VITE_STRIPE_PUBLISHABLE_KEY to enable payments.
+                                Stripe key not configured. Set STRIPE_PUBLISHABLE_KEY in config.js to enable payments.
                               </p>
                             )}
                             <p className="text-sm text-gray-500">

@@ -1,5 +1,7 @@
-// API base URL from environment or same origin
-const API_BASE_URL = import.meta.env.VITE_API_URL || '';
+import { config } from './config';
+
+// API base URL from runtime config or same origin
+const API_BASE_URL = config.API_URL;
 
 interface ApiResponse<T = unknown> {
   success: boolean;
