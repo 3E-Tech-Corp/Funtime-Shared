@@ -86,11 +86,6 @@ public class AssetController : ControllerBase
 
             _logger.LogInformation("Asset {AssetId} uploaded by user {UserId}", asset.Id, userId);
 
-            // Build the full URL for the asset
-            var assetUrl = asset.StorageType == "s3" && asset.StorageUrl.StartsWith("https://")
-                ? asset.StorageUrl
-                : $"{Request.Scheme}://{Request.Host}/asset/{asset.Id}";
-
             return Ok(new AssetUploadResponse
             {
                 Success = true,
@@ -98,7 +93,7 @@ public class AssetController : ControllerBase
                 FileName = asset.FileName,
                 ContentType = asset.ContentType,
                 FileSize = asset.FileSize,
-                Url = assetUrl
+                Url = $"/asset/{asset.Id}"
             });
         }
         catch (Exception ex)
@@ -170,11 +165,6 @@ public class AssetController : ControllerBase
             }
         }
 
-        // Build the full URL for the asset
-        var assetUrl = asset.StorageType == "s3" && asset.StorageUrl.StartsWith("https://")
-            ? asset.StorageUrl
-            : $"{Request.Scheme}://{Request.Host}/asset/{asset.Id}";
-
         return Ok(new AssetInfoResponse
         {
             Id = asset.Id,
@@ -184,7 +174,7 @@ public class AssetController : ControllerBase
             Category = asset.Category,
             IsPublic = asset.IsPublic,
             CreatedAt = asset.CreatedAt,
-            Url = assetUrl
+            Url = $"/asset/{asset.Id}"
         });
     }
 
