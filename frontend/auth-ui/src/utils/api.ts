@@ -898,16 +898,26 @@ export const settingsApi = {
   // Get logo URL for display (handles API path prefix)
   getLogoDisplayUrl(logoUrl: string): string {
     if (!logoUrl) return '';
-    // If URL already has protocol or API base, return as-is
+
+    // Extract the path from the URL (remove any host prefix)
+    let path = logoUrl;
+
+    // If it's a full URL, extract just the path
     if (logoUrl.startsWith('http://') || logoUrl.startsWith('https://')) {
-      return logoUrl;
+      try {
+        const url = new URL(logoUrl);
+        path = url.pathname;
+      } catch {
+        // If URL parsing fails, try to extract path after the host
+        const match = logoUrl.match(/https?:\/\/[^/]+(\/.*)/);
+        if (match) {
+          path = match[1];
+        }
+      }
     }
-    // If URL already starts with API_BASE_URL path, don't double-prefix
-    if (API_BASE_URL && logoUrl.startsWith(API_BASE_URL)) {
-      return logoUrl;
-    }
-    // Logo URL is like /asset/123, need to prepend API base
-    return `${API_BASE_URL}${logoUrl}`;
+
+    // Now prepend the correct API base URL
+    return `${API_BASE_URL}${path}`;
   },
 
   // Get Terms of Service (public)
