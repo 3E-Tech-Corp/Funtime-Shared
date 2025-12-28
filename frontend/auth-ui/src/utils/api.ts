@@ -458,26 +458,42 @@ export interface AdminPaymentMethod {
 }
 
 // Asset types
+export type AssetType = 'image' | 'video' | 'document' | 'audio' | 'link';
+
 export interface AssetUploadResponse {
   assetId: number;
+  assetType: AssetType;
   fileName: string;
   contentType: string;
   fileSize: number;
-  storageType: string;
   url: string;
+  externalUrl?: string;
+  thumbnailUrl?: string;
 }
 
 export interface AssetInfo {
   id: number;
+  assetType: AssetType;
   fileName: string;
   contentType: string;
   fileSize: number;
-  storageType: string;
   category?: string;
+  externalUrl?: string;
+  thumbnailUrl?: string;
   uploadedBy?: number;
   createdAt: string;
   isPublic: boolean;
   url: string;
+}
+
+export interface RegisterLinkRequest {
+  url: string;
+  title?: string;
+  assetType?: AssetType;
+  thumbnailUrl?: string;
+  category?: string;
+  siteKey?: string;
+  isPublic?: boolean;
 }
 
 // Asset API methods
@@ -486,6 +502,7 @@ export const assetApi = {
   async upload(
     file: File,
     options?: {
+      assetType?: AssetType;
       category?: string;
       siteKey?: string;
       isPublic?: boolean;
@@ -495,6 +512,7 @@ export const assetApi = {
     formData.append('file', file);
 
     const params = new URLSearchParams();
+    if (options?.assetType) params.set('assetType', options.assetType);
     if (options?.category) params.set('category', options.category);
     if (options?.siteKey) params.set('siteKey', options.siteKey);
     params.set('isPublic', (options?.isPublic ?? true).toString());
@@ -509,6 +527,26 @@ export const assetApi = {
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: 'Upload failed' }));
       throw new Error(error.message || 'Upload failed');
+    }
+
+    return response.json();
+  },
+
+  // Register an external link as an asset (YouTube, etc.)
+  async registerLink(linkData: RegisterLinkRequest): Promise<AssetUploadResponse> {
+    const token = localStorage.getItem('auth_token');
+    const response = await fetch(`${API_BASE_URL}/asset/link`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(linkData),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ message: 'Failed to register link' }));
+      throw new Error(error.message || 'Failed to register link');
     }
 
     return response.json();

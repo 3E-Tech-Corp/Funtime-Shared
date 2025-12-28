@@ -3,7 +3,19 @@ using System.ComponentModel.DataAnnotations;
 namespace Funtime.Identity.Api.Models;
 
 /// <summary>
-/// Represents an uploaded asset (image, document, etc.)
+/// Asset types for categorizing content
+/// </summary>
+public static class AssetTypes
+{
+    public const string Image = "image";
+    public const string Video = "video";
+    public const string Document = "document";
+    public const string Audio = "audio";
+    public const string Link = "link";
+}
+
+/// <summary>
+/// Represents an uploaded asset (image, document, etc.) or external link
 /// </summary>
 public class Asset
 {
@@ -11,33 +23,51 @@ public class Asset
     public int Id { get; set; }
 
     /// <summary>
-    /// Original filename
+    /// Asset type: image, video, document, audio, link
+    /// </summary>
+    [Required]
+    [MaxLength(20)]
+    public string AssetType { get; set; } = AssetTypes.Image;
+
+    /// <summary>
+    /// Original filename (for uploads) or title (for links)
     /// </summary>
     [Required]
     [MaxLength(255)]
     public string FileName { get; set; } = string.Empty;
 
     /// <summary>
-    /// MIME type (e.g., image/png, application/pdf)
+    /// MIME type (e.g., image/png, application/pdf, video/mp4)
     /// </summary>
     [Required]
     [MaxLength(100)]
     public string ContentType { get; set; } = string.Empty;
 
     /// <summary>
-    /// File size in bytes
+    /// File size in bytes (0 for external links)
     /// </summary>
     public long FileSize { get; set; }
 
     /// <summary>
-    /// Storage location URL (S3 URL or local path)
+    /// Storage location URL (S3 URL or local path) - for uploaded files
     /// </summary>
-    [Required]
     [MaxLength(1000)]
     public string StorageUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Storage type: "local" or "s3"
+    /// External URL (YouTube, Vimeo, etc.) - for linked assets
+    /// </summary>
+    [MaxLength(2000)]
+    public string? ExternalUrl { get; set; }
+
+    /// <summary>
+    /// Thumbnail URL for videos or external content
+    /// </summary>
+    [MaxLength(1000)]
+    public string? ThumbnailUrl { get; set; }
+
+    /// <summary>
+    /// Storage type: "local", "s3", or "external"
     /// </summary>
     [Required]
     [MaxLength(20)]

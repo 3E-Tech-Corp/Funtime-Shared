@@ -33,6 +33,7 @@ public class AssetController : ControllerBase
     [Authorize]
     public async Task<ActionResult<AssetUploadResponse>> Upload(
         IFormFile file,
+        [FromQuery] string? assetType = null,
         [FromQuery] string? category = null,
         [FromQuery] string? siteKey = null,
         [FromQuery] bool isPublic = true)
@@ -48,16 +49,21 @@ public class AssetController : ControllerBase
             return BadRequest(new { message = "File size must be less than 10MB." });
         }
 
-        // Validate file type for images
+        // Validate file type
         var allowedImageTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
         var allowedDocTypes = new[] { "application/pdf", "application/msword",
             "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
-        var allAllowedTypes = allowedImageTypes.Concat(allowedDocTypes).ToArray();
+        var allowedVideoTypes = new[] { "video/mp4", "video/webm", "video/ogg" };
+        var allowedAudioTypes = new[] { "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3" };
+        var allAllowedTypes = allowedImageTypes.Concat(allowedDocTypes).Concat(allowedVideoTypes).Concat(allowedAudioTypes).ToArray();
 
         if (!allAllowedTypes.Contains(file.ContentType.ToLower()))
         {
             return BadRequest(new { message = "Invalid file type." });
         }
+
+        // Determine asset type from content type if not specified
+        var detectedAssetType = assetType ?? DetectAssetType(file.ContentType);
 
         var userId = GetCurrentUserId();
         var containerName = category ?? "general";
@@ -70,6 +76,7 @@ public class AssetController : ControllerBase
             // Create asset record
             var asset = new Asset
             {
+                AssetType = detectedAssetType,
                 FileName = file.FileName,
                 ContentType = file.ContentType,
                 FileSize = file.Length,
@@ -84,12 +91,13 @@ public class AssetController : ControllerBase
             _context.Assets.Add(asset);
             await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Asset {AssetId} uploaded by user {UserId}", asset.Id, userId);
+            _logger.LogInformation("Asset {AssetId} ({AssetType}) uploaded by user {UserId}", asset.Id, detectedAssetType, userId);
 
             return Ok(new AssetUploadResponse
             {
                 Success = true,
                 AssetId = asset.Id,
+                AssetType = asset.AssetType,
                 FileName = asset.FileName,
                 ContentType = asset.ContentType,
                 FileSize = asset.FileSize,
@@ -104,7 +112,120 @@ public class AssetController : ControllerBase
     }
 
     /// <summary>
-    /// Get asset file by ID
+    /// Register an external link as an asset (YouTube, Vimeo, etc.)
+    /// </summary>
+    [HttpPost("link")]
+    [Authorize]
+    public async Task<ActionResult<AssetUploadResponse>> RegisterLink([FromBody] RegisterLinkRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Url))
+        {
+            return BadRequest(new { message = "URL is required." });
+        }
+
+        // Validate URL format
+        if (!Uri.TryCreate(request.Url, UriKind.Absolute, out var uri))
+        {
+            return BadRequest(new { message = "Invalid URL format." });
+        }
+
+        var userId = GetCurrentUserId();
+
+        // Extract info from URL (YouTube, Vimeo, etc.)
+        var (title, thumbnailUrl, contentType) = ExtractLinkInfo(request.Url);
+
+        var asset = new Asset
+        {
+            AssetType = request.AssetType ?? AssetTypes.Link,
+            FileName = request.Title ?? title ?? "External Link",
+            ContentType = contentType,
+            FileSize = 0,
+            StorageUrl = string.Empty,
+            ExternalUrl = request.Url,
+            ThumbnailUrl = request.ThumbnailUrl ?? thumbnailUrl,
+            StorageType = "external",
+            Category = request.Category,
+            SiteKey = request.SiteKey,
+            UploadedBy = userId,
+            IsPublic = request.IsPublic
+        };
+
+        _context.Assets.Add(asset);
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("External link asset {AssetId} registered by user {UserId}: {Url}", asset.Id, userId, request.Url);
+
+        return Ok(new AssetUploadResponse
+        {
+            Success = true,
+            AssetId = asset.Id,
+            AssetType = asset.AssetType,
+            FileName = asset.FileName,
+            ContentType = asset.ContentType,
+            FileSize = 0,
+            Url = $"/asset/{asset.Id}",
+            ExternalUrl = asset.ExternalUrl,
+            ThumbnailUrl = asset.ThumbnailUrl
+        });
+    }
+
+    private static string DetectAssetType(string contentType)
+    {
+        if (contentType.StartsWith("image/")) return AssetTypes.Image;
+        if (contentType.StartsWith("video/")) return AssetTypes.Video;
+        if (contentType.StartsWith("audio/")) return AssetTypes.Audio;
+        if (contentType.Contains("pdf") || contentType.Contains("document") || contentType.Contains("word"))
+            return AssetTypes.Document;
+        return AssetTypes.Image;
+    }
+
+    private static (string? title, string? thumbnailUrl, string contentType) ExtractLinkInfo(string url)
+    {
+        var uri = new Uri(url);
+        var host = uri.Host.ToLower();
+
+        // YouTube
+        if (host.Contains("youtube.com") || host.Contains("youtu.be"))
+        {
+            var videoId = ExtractYouTubeVideoId(url);
+            if (!string.IsNullOrEmpty(videoId))
+            {
+                return (null, $"https://img.youtube.com/vi/{videoId}/hqdefault.jpg", "video/youtube");
+            }
+        }
+
+        // Vimeo
+        if (host.Contains("vimeo.com"))
+        {
+            return (null, null, "video/vimeo");
+        }
+
+        // Default
+        return (null, null, "text/html");
+    }
+
+    private static string? ExtractYouTubeVideoId(string url)
+    {
+        var uri = new Uri(url);
+
+        // youtube.com/watch?v=VIDEO_ID
+        if (uri.Host.Contains("youtube.com"))
+        {
+            var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+            return query["v"];
+        }
+
+        // youtu.be/VIDEO_ID
+        if (uri.Host.Contains("youtu.be"))
+        {
+            return uri.AbsolutePath.TrimStart('/');
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Get asset file by ID (redirects to external URL for linked assets)
     /// </summary>
     [HttpGet("{id:int}")]
     [AllowAnonymous]
@@ -124,6 +245,12 @@ public class AssetController : ControllerBase
             {
                 return Unauthorized();
             }
+        }
+
+        // For external links, redirect to the external URL
+        if (asset.StorageType == "external" && !string.IsNullOrEmpty(asset.ExternalUrl))
+        {
+            return Redirect(asset.ExternalUrl);
         }
 
         // For S3 with public URLs, redirect to the S3 URL
@@ -168,10 +295,13 @@ public class AssetController : ControllerBase
         return Ok(new AssetInfoResponse
         {
             Id = asset.Id,
+            AssetType = asset.AssetType,
             FileName = asset.FileName,
             ContentType = asset.ContentType,
             FileSize = asset.FileSize,
             Category = asset.Category,
+            ExternalUrl = asset.ExternalUrl,
+            ThumbnailUrl = asset.ThumbnailUrl,
             IsPublic = asset.IsPublic,
             CreatedAt = asset.CreatedAt,
             Url = $"/asset/{asset.Id}"
@@ -233,19 +363,36 @@ public class AssetUploadResponse
 {
     public bool Success { get; set; }
     public int AssetId { get; set; }
+    public string AssetType { get; set; } = "image";
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public long FileSize { get; set; }
     public string Url { get; set; } = string.Empty;
+    public string? ExternalUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
+}
+
+public class RegisterLinkRequest
+{
+    public string Url { get; set; } = string.Empty;
+    public string? Title { get; set; }
+    public string? AssetType { get; set; }
+    public string? ThumbnailUrl { get; set; }
+    public string? Category { get; set; }
+    public string? SiteKey { get; set; }
+    public bool IsPublic { get; set; } = true;
 }
 
 public class AssetInfoResponse
 {
     public int Id { get; set; }
+    public string AssetType { get; set; } = "image";
     public string FileName { get; set; } = string.Empty;
     public string ContentType { get; set; } = string.Empty;
     public long FileSize { get; set; }
     public string? Category { get; set; }
+    public string? ExternalUrl { get; set; }
+    public string? ThumbnailUrl { get; set; }
     public bool IsPublic { get; set; }
     public DateTime CreatedAt { get; set; }
     public string Url { get; set; } = string.Empty;
