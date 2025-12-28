@@ -1,6 +1,8 @@
 // Runtime configuration - edit this file per environment without rebuilding
 // This file is loaded before the app starts via index.html
 window.__FUNTIME_CONFIG__ = {
-  API_URL: "", // Leave empty for same-origin, or set to "https://api.example.com"
+  // API URL path - set to "/api" when backend is a virtual application
+  // Leave empty only if API is at same origin root (not typical)
+  API_URL: "/api",
   STRIPE_PUBLISHABLE_KEY: "pk_test_YOUR_KEY_HERE"
 };
