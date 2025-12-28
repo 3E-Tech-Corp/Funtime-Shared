@@ -322,11 +322,17 @@ export const adminApi = {
   },
 
   // Users
-  async searchUsers(search?: string, page = 1, pageSize = 20): Promise<AdminUserList> {
+  async searchUsers(filters?: {
+    search?: string;
+    siteKey?: string;
+    page?: number;
+    pageSize?: number;
+  }): Promise<AdminUserList> {
     const params = new URLSearchParams();
-    if (search) params.set('search', search);
-    params.set('page', page.toString());
-    params.set('pageSize', pageSize.toString());
+    if (filters?.search) params.set('search', filters.search);
+    if (filters?.siteKey) params.set('siteKey', filters.siteKey);
+    params.set('page', (filters?.page || 1).toString());
+    params.set('pageSize', (filters?.pageSize || 20).toString());
 
     return request(`/admin/users?${params}`, {
       headers: getAuthHeaders(),

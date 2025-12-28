@@ -23,6 +23,7 @@ export function AdminDashboardPage() {
 
   // Users state
   const [userSearch, setUserSearch] = useState('');
+  const [userSiteFilter, setUserSiteFilter] = useState('');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [usersTotalCount, setUsersTotalCount] = useState(0);
   const [usersPage, setUsersPage] = useState(1);
@@ -33,20 +34,22 @@ export function AdminDashboardPage() {
   const [paymentsTotalCount, setPaymentsTotalCount] = useState(0);
   const [paymentsTotalAmount, setPaymentsTotalAmount] = useState(0);
   const [paymentsPage, setPaymentsPage] = useState(1);
+  const [paymentUserSearch, setPaymentUserSearch] = useState('');
+  const [paymentSiteFilter, setPaymentSiteFilter] = useState('');
 
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     window.location.href = '/login';
   };
 
-  // Load stats on mount
+  // Load stats and sites on mount
   useEffect(() => {
     loadStats();
+    loadSites(); // Load sites for filter dropdowns
   }, []);
 
   // Load data when tab changes
   useEffect(() => {
-    if (activeTab === 'sites') loadSites();
     if (activeTab === 'payments') loadPayments();
   }, [activeTab]);
 
@@ -72,11 +75,11 @@ export function AdminDashboardPage() {
     }
   };
 
-  const loadUsers = async (search?: string, page = 1) => {
+  const loadUsers = async (search?: string, siteKey?: string, page = 1) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await adminApi.searchUsers(search, page);
+      const data = await adminApi.searchUsers({ search, siteKey, page });
       setUsers(data.users);
       setUsersTotalCount(data.totalCount);
       setUsersPage(page);
@@ -99,11 +102,11 @@ export function AdminDashboardPage() {
     }
   };
 
-  const loadPayments = async (page = 1) => {
+  const loadPayments = async (userId?: number, siteKey?: string, page = 1) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await adminApi.getPayments({ page });
+      const data = await adminApi.getPayments({ userId, siteKey, page });
       setPayments(data.payments);
       setPaymentsTotalCount(data.totalCount);
       setPaymentsTotalAmount(data.totalAmountCents);
@@ -116,7 +119,12 @@ export function AdminDashboardPage() {
   };
 
   const handleSearchUsers = () => {
-    loadUsers(userSearch);
+    loadUsers(userSearch, userSiteFilter);
+  };
+
+  const handleSearchPayments = () => {
+    const userId = paymentUserSearch ? parseInt(paymentUserSearch, 10) : undefined;
+    loadPayments(isNaN(userId!) ? undefined : userId, paymentSiteFilter || undefined);
   };
 
   const handleUpdateSite = async (key: string, updates: Partial<Site>) => {
@@ -167,7 +175,7 @@ export function AdminDashboardPage() {
       if (selectedUser) {
         loadUserDetail(id);
       }
-      loadUsers(userSearch, usersPage);
+      loadUsers(userSearch, userSiteFilter, usersPage);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user');
     }
@@ -386,6 +394,18 @@ export function AdminDashboardPage() {
                       className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                     />
                   </div>
+                  <select
+                    value={userSiteFilter}
+                    onChange={(e) => setUserSiteFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  >
+                    <option value="">All Sites</option>
+                    {sites.map((site) => (
+                      <option key={site.key} value={site.key}>
+                        {site.name}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={handleSearchUsers}
                     disabled={isLoading}
@@ -430,14 +450,14 @@ export function AdminDashboardPage() {
                   </p>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => loadUsers(userSearch, usersPage - 1)}
+                      onClick={() => loadUsers(userSearch, userSiteFilter, usersPage - 1)}
                       disabled={usersPage <= 1}
                       className="px-3 py-1 border rounded disabled:opacity-50"
                     >
                       Previous
                     </button>
                     <button
-                      onClick={() => loadUsers(userSearch, usersPage + 1)}
+                      onClick={() => loadUsers(userSearch, userSiteFilter, usersPage + 1)}
                       disabled={users.length < 20}
                       className="px-3 py-1 border rounded disabled:opacity-50"
                     >
@@ -563,6 +583,47 @@ export function AdminDashboardPage() {
                   </p>
                 </div>
               </div>
+              <div className="mt-4 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="User ID..."
+                  value={paymentUserSearch}
+                  onChange={(e) => setPaymentUserSearch(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearchPayments()}
+                  className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+                <select
+                  value={paymentSiteFilter}
+                  onChange={(e) => setPaymentSiteFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">All Sites</option>
+                  {sites.map((site) => (
+                    <option key={site.key} value={site.key}>
+                      {site.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleSearchPayments}
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50"
+                >
+                  {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Filter'}
+                </button>
+                {(paymentUserSearch || paymentSiteFilter) && (
+                  <button
+                    onClick={() => {
+                      setPaymentUserSearch('');
+                      setPaymentSiteFilter('');
+                      loadPayments();
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
             {isLoading ? (
               <div className="p-8 text-center">
@@ -605,14 +666,20 @@ export function AdminDashboardPage() {
                 <p className="text-sm text-gray-500">Page {paymentsPage}</p>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => loadPayments(paymentsPage - 1)}
+                    onClick={() => {
+                      const userId = paymentUserSearch ? parseInt(paymentUserSearch, 10) : undefined;
+                      loadPayments(isNaN(userId!) ? undefined : userId, paymentSiteFilter || undefined, paymentsPage - 1);
+                    }}
                     disabled={paymentsPage <= 1}
                     className="px-3 py-1 border rounded disabled:opacity-50"
                   >
                     Previous
                   </button>
                   <button
-                    onClick={() => loadPayments(paymentsPage + 1)}
+                    onClick={() => {
+                      const userId = paymentUserSearch ? parseInt(paymentUserSearch, 10) : undefined;
+                      loadPayments(isNaN(userId!) ? undefined : userId, paymentSiteFilter || undefined, paymentsPage + 1);
+                    }}
                     disabled={payments.length < 20}
                     className="px-3 py-1 border rounded disabled:opacity-50"
                   >
