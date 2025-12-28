@@ -756,10 +756,10 @@ export function NotificationsTab() {
                     ))
                   ) : (
                     <>
-                      <option value="None">None</option>
-                      <option value="SslOnConnect">SSL on Connect</option>
-                      <option value="StartTls">StartTLS (required)</option>
-                      <option value="StartTlsWhenAvailable">StartTLS (when available)</option>
+                      <option key="None" value="None">None</option>
+                      <option key="SslOnConnect" value="SslOnConnect">SSL on Connect</option>
+                      <option key="StartTls" value="StartTls">StartTLS (required)</option>
+                      <option key="StartTlsWhenAvailable" value="StartTlsWhenAvailable">StartTLS (when available)</option>
                     </>
                   )}
                 </select>
@@ -933,8 +933,8 @@ export function NotificationsTab() {
                       ))
                     ) : (
                       <>
-                        <option value="Email">Email</option>
-                        <option value="SMS">SMS</option>
+                        <option key="Email" value="Email">Email</option>
+                        <option key="SMS" value="SMS">SMS</option>
                       </>
                     )}
                   </select>
@@ -954,9 +954,9 @@ export function NotificationsTab() {
                       ))
                     ) : (
                       <>
-                        <option value="Active">Active</option>
-                        <option value="Testing">Testing</option>
-                        <option value="Inactive">Inactive</option>
+                        <option key="Active" value="Active">Active</option>
+                        <option key="Testing" value="Testing">Testing</option>
+                        <option key="Inactive" value="Inactive">Inactive</option>
                       </>
                     )}
                   </select>
