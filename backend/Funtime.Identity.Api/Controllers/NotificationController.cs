@@ -573,7 +573,7 @@ public class NotificationController : ControllerBase
             // Get counts from each table
             var profileCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM MailProfile");
             var activeProfileCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM MailProfile WHERE IsActive = 1");
-            var templateCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailTemplates");
+            var templateCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Email_Templates");
             var taskCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Tasks");
             var activeTaskCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Tasks WHERE Status = 'Active'");
             var pendingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 'Pending'");
