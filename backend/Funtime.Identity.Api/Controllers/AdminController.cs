@@ -461,6 +461,54 @@ public class AdminController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Update user's role on a specific site
+    /// </summary>
+    [HttpPut("users/{id}/site-role")]
+    public async Task<ActionResult<UserSiteInfo>> UpdateUserSiteRole(int id, [FromBody] UpdateUserSiteRoleRequest request)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        // Find the user site record
+        var userSite = await _context.UserSites
+            .FirstOrDefaultAsync(us => us.UserId == id && us.SiteKey == request.SiteKey);
+
+        if (userSite == null)
+        {
+            // Create new user site association
+            userSite = new Models.UserSite
+            {
+                UserId = id,
+                SiteKey = request.SiteKey,
+                Role = request.Role,
+                IsActive = true,
+                JoinedAt = DateTime.UtcNow
+            };
+            _context.UserSites.Add(userSite);
+        }
+        else
+        {
+            // Update existing role
+            userSite.Role = request.Role;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("User {UserId} site role updated to {Role} for site {SiteKey}", id, request.Role, request.SiteKey);
+
+        return Ok(new UserSiteInfo
+        {
+            SiteKey = userSite.SiteKey,
+            Role = userSite.Role,
+            IsActive = userSite.IsActive,
+            JoinedAt = userSite.JoinedAt
+        });
+    }
+
     #endregion
 
     #region Payments

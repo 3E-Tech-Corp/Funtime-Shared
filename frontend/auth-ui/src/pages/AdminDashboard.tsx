@@ -731,19 +731,38 @@ export function AdminDashboardPage() {
                       </div>
                     </div>
 
-                    {selectedUser.sites.length > 0 && (
-                      <div>
-                        <h4 className="font-medium text-gray-900 mb-2">Sites</h4>
-                        <div className="space-y-2">
-                          {selectedUser.sites.map((site) => (
-                            <div key={site.siteKey} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                              <span>{site.siteKey}</span>
-                              <span className="text-sm text-gray-500">{site.role}</span>
+                    <div>
+                      <h4 className="font-medium text-gray-900 mb-2">Site Roles</h4>
+                      <div className="space-y-2">
+                        {sites.map((site) => {
+                          const userSite = selectedUser.sites.find(s => s.siteKey === site.key);
+                          const currentRole = userSite?.role || '';
+                          return (
+                            <div key={site.key} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                              <span className="font-medium">{site.name}</span>
+                              <select
+                                value={currentRole}
+                                onChange={async (e) => {
+                                  const newRole = e.target.value;
+                                  try {
+                                    await adminApi.updateUserSiteRole(selectedUser.id, site.key, newRole);
+                                    loadUserDetail(selectedUser.id);
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : 'Failed to update role');
+                                  }
+                                }}
+                                className="text-sm px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                              >
+                                <option value="">Not a member</option>
+                                <option value="member">Member</option>
+                                <option value="moderator">Moderator</option>
+                                <option value="admin">Admin</option>
+                              </select>
                             </div>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-                    )}
+                    </div>
 
                     {selectedUser.subscriptions.length > 0 && (
                       <div>

@@ -446,6 +446,85 @@ public class SettingsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Get user's role for a specific site. Used by calling sites to check if user is admin.
+    /// If userId is not specified, returns the role for the authenticated user.
+    /// </summary>
+    [HttpGet("user-role")]
+    [AllowAnonymous]
+    public async Task<ActionResult<UserRoleResponse>> GetUserRole(
+        [FromQuery] string? site,
+        [FromQuery] int? userId)
+    {
+        // Get user ID from query or from JWT token
+        int targetUserId;
+        if (userId.HasValue)
+        {
+            targetUserId = userId.Value;
+        }
+        else
+        {
+            var currentUserId = GetCurrentUserId();
+            if (currentUserId == null)
+            {
+                return Unauthorized(new { message = "User ID required or must be authenticated" });
+            }
+            targetUserId = currentUserId.Value;
+        }
+
+        // Normalize site key (strip "pickleball." prefix if present)
+        var siteKey = site;
+        if (!string.IsNullOrEmpty(siteKey) && siteKey.StartsWith("pickleball.", StringComparison.OrdinalIgnoreCase))
+        {
+            siteKey = siteKey.Substring("pickleball.".Length);
+        }
+
+        // Get user info
+        var user = await _context.Users
+            .Include(u => u.UserSites)
+            .FirstOrDefaultAsync(u => u.Id == targetUserId);
+
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found" });
+        }
+
+        // Build response
+        var response = new UserRoleResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            SystemRole = user.SystemRole
+        };
+
+        // If site specified, get role for that site
+        if (!string.IsNullOrEmpty(siteKey))
+        {
+            var userSite = user.UserSites
+                .FirstOrDefault(us => us.SiteKey.Equals(siteKey, StringComparison.OrdinalIgnoreCase));
+
+            response.SiteKey = siteKey;
+            response.SiteRole = userSite?.Role;
+            response.IsSiteMember = userSite != null && userSite.IsActive;
+            response.IsSiteAdmin = userSite?.Role == "admin" || user.SystemRole == "SU";
+        }
+        else
+        {
+            // Return all site memberships
+            response.Sites = user.UserSites
+                .Where(us => us.IsActive)
+                .Select(us => new UserSiteRoleInfo
+                {
+                    SiteKey = us.SiteKey,
+                    Role = us.Role,
+                    IsAdmin = us.Role == "admin" || user.SystemRole == "SU"
+                })
+                .ToList();
+        }
+
+        return Ok(response);
+    }
+
     private int? GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst("sub")?.Value ?? User.FindFirst("id")?.Value;
@@ -481,4 +560,23 @@ public class LogoOverlayResponse
     public string? MainLogoUrl { get; set; }
     public string? SiteLogoUrl { get; set; }
     public string? SiteName { get; set; }
+}
+
+public class UserRoleResponse
+{
+    public int UserId { get; set; }
+    public string? Email { get; set; }
+    public string? SystemRole { get; set; }
+    public string? SiteKey { get; set; }
+    public string? SiteRole { get; set; }
+    public bool? IsSiteMember { get; set; }
+    public bool? IsSiteAdmin { get; set; }
+    public List<UserSiteRoleInfo>? Sites { get; set; }
+}
+
+public class UserSiteRoleInfo
+{
+    public string SiteKey { get; set; } = string.Empty;
+    public string Role { get; set; } = string.Empty;
+    public bool IsAdmin { get; set; }
 }

@@ -270,6 +270,59 @@ function getAuthHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+// JWT token payload structure
+export interface TokenPayload {
+  nameid: string; // User ID
+  email?: string;
+  role?: string; // System role (SU for super admin)
+  sites?: string; // JSON array of site keys
+  exp: number;
+}
+
+// Decode JWT token (without verification - that's done server-side)
+export function decodeToken(token: string): TokenPayload | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const payload = parts[1];
+    // Handle base64url encoding
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+}
+
+// Get current user info from stored token
+export function getCurrentUser(): { id: number; email?: string; role?: string; sites: string[] } | null {
+  const token = localStorage.getItem('auth_token');
+  if (!token) return null;
+
+  const payload = decodeToken(token);
+  if (!payload) return null;
+
+  // Check if token is expired
+  if (payload.exp * 1000 < Date.now()) {
+    localStorage.removeItem('auth_token');
+    return null;
+  }
+
+  return {
+    id: parseInt(payload.nameid),
+    email: payload.email,
+    role: payload.role,
+    sites: payload.sites ? JSON.parse(payload.sites) : [],
+  };
+}
+
 // Admin API methods
 export const adminApi = {
   // Stats
@@ -365,6 +418,14 @@ export const adminApi = {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(updates),
+    });
+  },
+
+  async updateUserSiteRole(userId: number, siteKey: string, role: string): Promise<UserSiteInfo> {
+    return request(`/admin/users/${userId}/site-role`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ siteKey, role }),
     });
   },
 

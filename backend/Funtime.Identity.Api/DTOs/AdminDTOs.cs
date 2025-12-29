@@ -145,6 +145,17 @@ public class UpdateUserRequest
     public bool? IsPhoneVerified { get; set; }
 }
 
+public class UpdateUserSiteRoleRequest
+{
+    [Required]
+    [MaxLength(50)]
+    public string SiteKey { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(50)]
+    public string Role { get; set; } = "member"; // member, admin, moderator
+}
+
 #endregion
 
 #region Payments

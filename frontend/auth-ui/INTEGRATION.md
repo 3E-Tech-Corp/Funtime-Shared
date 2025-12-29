@@ -181,6 +181,7 @@ GET /settings/logo                  - Get main logo info
 GET /settings/logo-url?site={key}   - Get logo URL by site key (see below)
 GET /settings/logo-overlay?site={key} - Get both main and site logos (see below)
 GET /settings/logo-html?site={key}&size={size} - Get ready-to-use HTML (see below)
+GET /settings/user-role?site={key}&userId={id} - Get user's role for a site (see below)
 GET /settings/terms-of-service      - Get Terms of Service
 GET /settings/privacy-policy        - Get Privacy Policy
 ```
@@ -266,6 +267,59 @@ fetch('https://shared.funtimepb.com/api/settings/logo-html?site=community&size=l
 ></iframe>
 ```
 
+#### User Role Endpoint
+
+Get user's role for a specific site. Use this when syncing auth info to check if a user is an admin.
+
+```
+GET /settings/user-role?userId=42               → Returns all site memberships for user
+GET /settings/user-role?site=community&userId=42 → Returns role for specific site
+GET /settings/user-role?site=community           → Uses authenticated user from JWT
+```
+
+**Response (with site specified):**
+```json
+{
+  "userId": 42,
+  "email": "user@example.com",
+  "systemRole": null,
+  "siteKey": "community",
+  "siteRole": "admin",
+  "isSiteMember": true,
+  "isSiteAdmin": true
+}
+```
+
+**Response (without site - returns all memberships):**
+```json
+{
+  "userId": 42,
+  "email": "user@example.com",
+  "systemRole": null,
+  "sites": [
+    { "siteKey": "community", "role": "admin", "isAdmin": true },
+    { "siteKey": "college", "role": "member", "isAdmin": false }
+  ]
+}
+```
+
+**Notes:**
+- `isSiteAdmin` is `true` if user has "admin" role OR is a system admin (SU)
+- `systemRole` will be "SU" for super admins who have admin access to all sites
+- Site key matching is case-insensitive and strips "pickleball." prefix
+
+**Usage in calling sites:**
+```javascript
+// Check if current user is admin for this site
+async function checkUserIsAdmin(userId, siteKey) {
+  const response = await fetch(
+    `https://shared.funtimepb.com/api/settings/user-role?site=${siteKey}&userId=${userId}`
+  );
+  const data = await response.json();
+  return data.isSiteAdmin === true;
+}
+```
+
 ### Admin Endpoints (Require Bearer Token)
 
 ```
@@ -278,8 +332,35 @@ DELETE /admin/sites/{key}/logo      - Delete site logo
 GET    /admin/users                 - Search users
 GET    /admin/users/{id}            - User details
 PUT    /admin/users/{id}            - Update user
+PUT    /admin/users/{id}/site-role  - Update user's site role
 GET    /admin/payments              - Payment history
 POST   /admin/payments/charge       - Create payment intent
+```
+
+#### Update User Site Role
+
+Assign or change a user's role for a specific site:
+
+```
+PUT /admin/users/{id}/site-role
+Content-Type: application/json
+
+{
+  "siteKey": "community",
+  "role": "admin"
+}
+```
+
+**Available roles:** `member`, `moderator`, `admin`
+
+Response:
+```json
+{
+  "siteKey": "community",
+  "role": "admin",
+  "isActive": true,
+  "joinedAt": "2025-01-15T10:30:00Z"
+}
 ```
 
 ---

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ExternalLink, LogOut, Loader2 } from 'lucide-react';
-import { authApi, settingsApi, type PublicSite } from '../utils/api';
+import { ExternalLink, LogOut, Loader2, Shield } from 'lucide-react';
+import { authApi, settingsApi, getCurrentUser, type PublicSite } from '../utils/api';
 
 // Fallback gradient colors for sites without logos
 const fallbackColors: Record<string, string> = {
@@ -14,6 +14,8 @@ export function SiteSelectionPage() {
   const [sites, setSites] = useState<PublicSite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currentUser = getCurrentUser();
+  const isSU = currentUser?.role === 'SU';
 
   useEffect(() => {
     loadSites();
@@ -58,6 +60,12 @@ export function SiteSelectionPage() {
         <div className="text-center mb-12">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Funtime Pickleball</h1>
           <p className="text-gray-600">Choose a site to continue</p>
+          {isSU && (
+            <div className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-700 rounded-full text-sm font-medium">
+              <Shield className="w-4 h-4" />
+              System Administrator
+            </div>
+          )}
         </div>
 
         {/* Loading */}
@@ -78,10 +86,9 @@ export function SiteSelectionPage() {
         {!isLoading && !error && (
           <div className="grid md:grid-cols-2 gap-6 mb-8">
             {sites.map((site) => (
-              <button
+              <div
                 key={site.key}
-                onClick={() => handleSiteClick(site.url)}
-                className="bg-white rounded-2xl shadow-soft p-6 text-left hover:shadow-lg transition-all group"
+                className="bg-white rounded-2xl shadow-soft p-6 hover:shadow-lg transition-all"
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-4">
@@ -100,19 +107,29 @@ export function SiteSelectionPage() {
                       </div>
                     )}
                     <div>
-                      <h2 className="text-xl font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">
+                      <h2 className="text-xl font-semibold text-gray-900">
                         {site.name}
                       </h2>
                       {site.description && (
-                        <p className="text-gray-600 mt-1">{site.description}</p>
+                        <p className="text-gray-600 mt-1 text-sm">{site.description}</p>
+                      )}
+                      {isSU && site.url && (
+                        <p className="text-gray-400 text-xs mt-1 truncate max-w-[200px]">{site.url}</p>
                       )}
                     </div>
                   </div>
-                  <div className={`p-2 rounded-lg bg-gradient-to-r ${getGradient(site.key)} text-white`}>
-                    <ExternalLink className="w-5 h-5" />
-                  </div>
                 </div>
-              </button>
+                {/* Action button */}
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={() => handleSiteClick(site.url)}
+                    className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors bg-gradient-to-r ${getGradient(site.key)} text-white hover:opacity-90`}
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Visit Site
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
