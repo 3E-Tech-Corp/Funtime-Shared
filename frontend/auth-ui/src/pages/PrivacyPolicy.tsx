@@ -6,7 +6,9 @@ import { SiteLogoOverlay } from '../components/SiteLogoOverlay';
 
 export function PrivacyPolicyPage() {
   const [searchParams] = useSearchParams();
-  const siteKey = searchParams.get('site') || '';
+  const rawSiteKey = searchParams.get('site') || '';
+  // Strip "pickleball." prefix if present
+  const siteKey = rawSiteKey.startsWith('pickleball.') ? rawSiteKey.substring(11) : rawSiteKey;
 
   const [content, setContent] = useState('');
   const [isLoading, setIsLoading] = useState(true);

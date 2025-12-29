@@ -10,9 +10,14 @@ export function getRedirectUrl(): string | null {
 }
 
 // Get site identifier from query params
+// Strips "pickleball." prefix if present (e.g., "pickleball.community" -> "community")
 export function getSiteKey(): string | null {
   const params = getQueryParams();
-  return params.get('site');
+  const siteKey = params.get('site');
+  if (siteKey && siteKey.startsWith('pickleball.')) {
+    return siteKey.substring('pickleball.'.length);
+  }
+  return siteKey;
 }
 
 // Get returnTo path from query params
