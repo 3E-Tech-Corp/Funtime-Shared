@@ -79,7 +79,7 @@ public class AdminController : ControllerBase
             Name = request.Name,
             Description = request.Description,
             Url = request.Url,
-            LogoUrl = request.LogoUrl,
+            LogoUrl = NormalizeAssetUrl(request.LogoUrl),
             IsActive = request.IsActive,
             RequiresSubscription = request.RequiresSubscription,
             MonthlyPriceCents = request.MonthlyPriceCents,
@@ -123,7 +123,7 @@ public class AdminController : ControllerBase
         site.Name = request.Name ?? site.Name;
         site.Description = request.Description ?? site.Description;
         site.Url = request.Url ?? site.Url;
-        site.LogoUrl = request.LogoUrl ?? site.LogoUrl;
+        site.LogoUrl = request.LogoUrl != null ? NormalizeAssetUrl(request.LogoUrl) : site.LogoUrl;
         site.IsActive = request.IsActive ?? site.IsActive;
         site.RequiresSubscription = request.RequiresSubscription ?? site.RequiresSubscription;
         site.MonthlyPriceCents = request.MonthlyPriceCents ?? site.MonthlyPriceCents;
@@ -730,6 +730,32 @@ public class AdminController : ControllerBase
             TotalSites = sitesCount,
             ActiveSites = activeSitesCount
         });
+    }
+
+    #endregion
+
+    #region Helpers
+
+    /// <summary>
+    /// Normalize asset URL to relative path.
+    /// Converts "http://localhost:5000/asset/123" to "/asset/123"
+    /// </summary>
+    private static string? NormalizeAssetUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return null;
+
+        // If already a relative path, return as-is
+        if (url.StartsWith("/asset/")) return url;
+
+        // Extract /asset/{id} from full URL
+        var assetIndex = url.IndexOf("/asset/", StringComparison.OrdinalIgnoreCase);
+        if (assetIndex >= 0)
+        {
+            return url.Substring(assetIndex);
+        }
+
+        // Return original if no /asset/ found
+        return url;
     }
 
     #endregion
