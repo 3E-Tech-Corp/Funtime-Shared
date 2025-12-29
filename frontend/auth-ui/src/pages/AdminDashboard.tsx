@@ -543,18 +543,26 @@ export function AdminDashboardPage() {
                 {sites.map((site) => (
                   <div key={site.key} className="p-4 hover:bg-gray-50">
                     <div className="flex items-center gap-4">
+                      {/* Site Logo */}
+                      <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
+                        {site.logoUrl ? (
+                          <img
+                            src={settingsApi.getLogoDisplayUrl(site.logoUrl)}
+                            alt={`${site.name} logo`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Globe className="w-6 h-6 text-gray-400" />
+                        )}
+                      </div>
                       {/* Logo Overlay Preview (main logo + site logo) */}
-                      {(mainLogoUrl || site.logoUrl) ? (
-                        <div className="flex-shrink-0">
+                      {(mainLogoUrl || site.logoUrl) && (
+                        <div className="flex-shrink-0 border border-gray-200 rounded p-1 bg-white" title="Header Preview">
                           <SiteLogoPreview
                             mainLogoUrl={mainLogoUrl}
                             siteLogoUrl={site.logoUrl ? settingsApi.getLogoDisplayUrl(site.logoUrl) : null}
                             siteName={site.name}
                           />
-                        </div>
-                      ) : (
-                        <div className="w-12 h-12 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100 flex items-center justify-center">
-                          <Globe className="w-6 h-6 text-gray-400" />
                         </div>
                       )}
                       <div className="flex-1 min-w-0">

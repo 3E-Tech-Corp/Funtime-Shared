@@ -270,11 +270,13 @@ function getAuthHeaders(): HeadersInit {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// JWT token payload structure
+// JWT token payload structure (using .NET claim names)
 export interface TokenPayload {
-  nameid: string; // User ID
-  email?: string;
-  role?: string; // System role (SU for super admin)
+  nameid: string; // User ID (ClaimTypes.NameIdentifier)
+  email?: string; // ClaimTypes.Email
+  // ClaimTypes.Role maps to this long URL in the JWT
+  'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'?: string;
+  role?: string; // Fallback short name
   sites?: string; // JSON array of site keys
   exp: number;
 }
@@ -315,10 +317,13 @@ export function getCurrentUser(): { id: number; email?: string; role?: string; s
     return null;
   }
 
+  // .NET ClaimTypes.Role uses the full URL as the claim name
+  const role = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || payload.role;
+
   return {
     id: parseInt(payload.nameid),
     email: payload.email,
-    role: payload.role,
+    role,
     sites: payload.sites ? JSON.parse(payload.sites) : [],
   };
 }
