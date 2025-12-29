@@ -31,6 +31,8 @@ interface AuthResponse {
     email?: string;
     phoneNumber?: string;
     systemRole?: string;
+    siteRole?: string;
+    isSiteAdmin?: boolean;
   };
 }
 
@@ -75,18 +77,18 @@ export const authApi = {
   },
 
   // Login with email and password
-  async login(email: string, password: string): Promise<AuthResponse> {
+  async login(email: string, password: string, siteKey?: string): Promise<AuthResponse> {
     return request('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, siteKey }),
     });
   },
 
   // Login with phone number and password
-  async loginWithPhone(phoneNumber: string, password: string): Promise<AuthResponse> {
+  async loginWithPhone(phoneNumber: string, password: string, siteKey?: string): Promise<AuthResponse> {
     return request('/auth/login/phone', {
       method: 'POST',
-      body: JSON.stringify({ phoneNumber, password }),
+      body: JSON.stringify({ phoneNumber, password, siteKey }),
     });
   },
 

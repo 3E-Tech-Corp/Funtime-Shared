@@ -25,6 +25,12 @@ public class LoginRequest
 
     [Required]
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional: Site key to return the user's role for that site
+    /// </summary>
+    [MaxLength(50)]
+    public string? SiteKey { get; set; }
 }
 
 // Phone/Password Login
@@ -36,6 +42,12 @@ public class PhoneLoginRequest
 
     [Required]
     public string Password { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Optional: Site key to return the user's role for that site
+    /// </summary>
+    [MaxLength(50)]
+    public string? SiteKey { get; set; }
 }
 
 // Public site info (no auth required)
@@ -121,6 +133,16 @@ public class UserResponse
     public bool IsPhoneVerified { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? LastLoginAt { get; set; }
+
+    /// <summary>
+    /// User's role for the requested site (if SiteKey was provided in login request)
+    /// </summary>
+    public string? SiteRole { get; set; }
+
+    /// <summary>
+    /// Whether the user is an admin for the requested site
+    /// </summary>
+    public bool? IsSiteAdmin { get; set; }
 }
 
 // Generic API Response

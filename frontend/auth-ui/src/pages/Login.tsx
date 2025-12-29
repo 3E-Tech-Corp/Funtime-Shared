@@ -99,7 +99,7 @@ export function LoginPage() {
     setError(null);
 
     try {
-      const response = await authApi.login(email, password);
+      const response = await authApi.login(email, password, siteKey || undefined);
       if (response.success && response.token) {
         handleLoginSuccess(response.token, response.user?.systemRole);
       } else {
@@ -118,7 +118,7 @@ export function LoginPage() {
     setError(null);
 
     try {
-      const response = await authApi.loginWithPhone(phoneNumber, phonePassword);
+      const response = await authApi.loginWithPhone(phoneNumber, phonePassword, siteKey || undefined);
       if (response.success && response.token) {
         handleLoginSuccess(response.token, response.user?.systemRole);
       } else {

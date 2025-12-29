@@ -106,6 +106,7 @@ public class AuthController : ControllerBase
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
     {
         var user = await _context.Users
+            .Include(u => u.UserSites)
             .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
 
         if (user == null || string.IsNullOrEmpty(user.PasswordHash))
@@ -139,7 +140,7 @@ public class AuthController : ControllerBase
             Success = true,
             Token = token,
             Message = "Login successful.",
-            User = MapToUserResponse(user)
+            User = MapToUserResponse(user, request.SiteKey)
         });
     }
 
@@ -152,6 +153,7 @@ public class AuthController : ControllerBase
         var normalizedPhone = NormalizePhoneNumber(request.PhoneNumber);
 
         var user = await _context.Users
+            .Include(u => u.UserSites)
             .FirstOrDefaultAsync(u => u.PhoneNumber == normalizedPhone);
 
         if (user == null || string.IsNullOrEmpty(user.PasswordHash))
@@ -185,7 +187,7 @@ public class AuthController : ControllerBase
             Success = true,
             Token = token,
             Message = "Login successful.",
-            User = MapToUserResponse(user)
+            User = MapToUserResponse(user, request.SiteKey)
         });
     }
 
@@ -1212,9 +1214,9 @@ public class AuthController : ControllerBase
         return "+" + digits;
     }
 
-    private static UserResponse MapToUserResponse(User user)
+    private static UserResponse MapToUserResponse(User user, string? siteKey = null)
     {
-        return new UserResponse
+        var response = new UserResponse
         {
             Id = user.Id,
             Email = user.Email,
@@ -1225,6 +1227,37 @@ public class AuthController : ControllerBase
             CreatedAt = user.CreatedAt,
             LastLoginAt = user.LastLoginAt
         };
+
+        // If siteKey is provided, look up the user's role for that site
+        if (!string.IsNullOrEmpty(siteKey))
+        {
+            // Normalize siteKey (strip "pickleball." prefix if present)
+            var normalizedSiteKey = siteKey;
+            if (normalizedSiteKey.StartsWith("pickleball.", StringComparison.OrdinalIgnoreCase))
+            {
+                normalizedSiteKey = normalizedSiteKey.Substring("pickleball.".Length);
+            }
+
+            // SU users are admins of all sites
+            if (user.SystemRole == "SU")
+            {
+                response.SiteRole = "admin";
+                response.IsSiteAdmin = true;
+            }
+            else if (user.UserSites != null)
+            {
+                var userSite = user.UserSites
+                    .FirstOrDefault(us => us.SiteKey.Equals(normalizedSiteKey, StringComparison.OrdinalIgnoreCase) && us.IsActive);
+
+                if (userSite != null)
+                {
+                    response.SiteRole = userSite.Role;
+                    response.IsSiteAdmin = userSite.Role == "admin";
+                }
+            }
+        }
+
+        return response;
     }
 
     #region JWT Cross-Site Support
