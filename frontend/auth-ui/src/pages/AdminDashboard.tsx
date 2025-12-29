@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle } from 'lucide-react';
+import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle, ExternalLink } from 'lucide-react';
 import { adminApi, assetApi, settingsApi } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
@@ -78,6 +78,16 @@ export function AdminDashboardPage() {
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     window.location.href = '/login';
+  };
+
+  const handleVisitSite = (siteUrl: string | undefined) => {
+    if (!siteUrl) return;
+    const token = localStorage.getItem('auth_token');
+    if (token) {
+      window.location.href = `${siteUrl}/auth/callback?token=${encodeURIComponent(token)}`;
+    } else {
+      window.location.href = siteUrl;
+    }
   };
 
   // Load stats and sites on mount
@@ -572,7 +582,7 @@ export function AdminDashboardPage() {
                           <p className="text-sm text-gray-400 mt-1 truncate">{site.description}</p>
                         )}
                       </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                         site.isActive
                           ? 'bg-green-100 text-green-700'
@@ -585,9 +595,21 @@ export function AdminDashboardPage() {
                           Paid
                         </span>
                       )}
+                      {site.url ? (
+                        <button
+                          onClick={() => handleVisitSite(site.url)}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          Visit
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400">No URL</span>
+                      )}
                       <button
                         onClick={() => setEditingSite(site)}
                         className="text-gray-400 hover:text-gray-600"
+                        title="Edit site"
                       >
                         <Edit2 className="w-5 h-5" />
                       </button>
