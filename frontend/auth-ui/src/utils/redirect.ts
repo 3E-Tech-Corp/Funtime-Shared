@@ -4,9 +4,10 @@ export function getQueryParams(): URLSearchParams {
 }
 
 // Get redirect URL from query params
+// Supports both 'redirect' and 'returnUrl' parameter names
 export function getRedirectUrl(): string | null {
   const params = getQueryParams();
-  return params.get('redirect');
+  return params.get('redirect') || params.get('returnUrl');
 }
 
 // Get site identifier from query params
