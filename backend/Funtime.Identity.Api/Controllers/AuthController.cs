@@ -1244,15 +1244,21 @@ public class AuthController : ControllerBase
                 response.SiteRole = "admin";
                 response.IsSiteAdmin = true;
             }
-            else if (user.UserSites != null)
+            else
             {
-                var userSite = user.UserSites
+                var userSite = user.UserSites?
                     .FirstOrDefault(us => us.SiteKey.Equals(normalizedSiteKey, StringComparison.OrdinalIgnoreCase) && us.IsActive);
 
                 if (userSite != null)
                 {
                     response.SiteRole = userSite.Role;
                     response.IsSiteAdmin = userSite.Role == "admin";
+                }
+                else
+                {
+                    // User has no entry in UserSites - default to member
+                    response.SiteRole = "member";
+                    response.IsSiteAdmin = false;
                 }
             }
         }
