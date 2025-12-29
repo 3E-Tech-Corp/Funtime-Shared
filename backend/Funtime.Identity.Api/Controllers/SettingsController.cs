@@ -262,7 +262,8 @@ public class SettingsController : ControllerBase
     public async Task<ContentResult> GetLogoHtml([FromQuery] string? site, [FromQuery] string? size = "md")
     {
         // Build base URL from current request (for absolute asset URLs)
-        var baseUrl = $"{Request.Scheme}://{Request.Host}";
+        // Include PathBase to handle apps hosted at /api path
+        var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
 
         // Strip "pickleball." prefix if present
         var siteKey = site;
