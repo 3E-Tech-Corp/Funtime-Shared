@@ -57,3 +57,4 @@ obj/
 *.GeneratedMSBuildEditorConfig.editorconfig
 *.GlobalUsings.g.cs
 *.assets.cache
+/backend/Funtime.Identity.Api/appsettings.json
