@@ -3,6 +3,19 @@ import { config } from './config';
 // API base URL from runtime config or same origin
 const API_BASE_URL = config.API_URL;
 
+// Rewrite asset URLs in HTML content to use current API base
+// This handles content saved with development URLs like http://localhost:5000/asset/7
+export function rewriteAssetUrls(html: string): string {
+  if (!html) return html;
+
+  // Match URLs like http://localhost:5000/asset/123 or https://old-server.com/asset/123
+  // and replace with current API_BASE_URL
+  return html.replace(
+    /https?:\/\/[^/\s"']+\/asset\/(\d+)/g,
+    `${API_BASE_URL}/asset/$1`
+  );
+}
+
 interface ApiResponse<T = unknown> {
   success: boolean;
   message?: string;

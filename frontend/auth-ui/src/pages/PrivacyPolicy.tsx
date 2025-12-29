@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2, ArrowLeft } from 'lucide-react';
-import { settingsApi, authApi, type PublicSite } from '../utils/api';
+import { settingsApi, authApi, rewriteAssetUrls, type PublicSite } from '../utils/api';
 import { SiteLogoOverlay } from '../components/SiteLogoOverlay';
 
 export function PrivacyPolicyPage() {
@@ -99,7 +99,7 @@ export function PrivacyPolicyPage() {
           ) : content ? (
             <div
               className="prose prose-gray max-w-none"
-              dangerouslySetInnerHTML={{ __html: content }}
+              dangerouslySetInnerHTML={{ __html: rewriteAssetUrls(content) }}
             />
           ) : (
             <div className="text-gray-500 text-center py-8">
