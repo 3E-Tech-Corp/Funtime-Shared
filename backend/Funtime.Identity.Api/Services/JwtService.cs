@@ -47,16 +47,26 @@ public class JwtService : IJwtService
         }
 
         // Fetch user's active sites
-        var userSites = await _context.UserSites
-            .Where(s => s.UserId == user.Id && s.IsActive)
-            .Select(s => s.SiteKey)
-            .ToListAsync();
+        List<string> userSites;
 
-        if (userSites.Any())
+        // SU users have access to ALL sites
+        if (user.SystemRole == "SU")
         {
-            // Add sites as a JSON array claim
-            claims.Add(new Claim("sites", JsonSerializer.Serialize(userSites)));
+            userSites = await _context.Sites
+                .Where(s => s.IsActive)
+                .Select(s => s.Key)
+                .ToListAsync();
         }
+        else
+        {
+            userSites = await _context.UserSites
+                .Where(s => s.UserId == user.Id && s.IsActive)
+                .Select(s => s.SiteKey)
+                .ToListAsync();
+        }
+
+        // Always include sites claim (even if empty array)
+        claims.Add(new Claim("sites", JsonSerializer.Serialize(userSites)));
 
         var expirationMinutes = int.Parse(_configuration["Jwt:ExpirationInMinutes"] ?? "60");
 
