@@ -283,6 +283,21 @@ GET /settings/user-role?site=community           → Uses authenticated user fro
   "userId": 42,
   "email": "user@example.com",
   "systemRole": null,
+  "isSystemAdmin": false,
+  "siteKey": "community",
+  "siteRole": "admin",
+  "isSiteMember": true,
+  "isSiteAdmin": true
+}
+```
+
+**Response for SU user (system admin):**
+```json
+{
+  "userId": 1,
+  "email": "admin@example.com",
+  "systemRole": "SU",
+  "isSystemAdmin": true,
   "siteKey": "community",
   "siteRole": "admin",
   "isSiteMember": true,
@@ -296,6 +311,7 @@ GET /settings/user-role?site=community           → Uses authenticated user fro
   "userId": 42,
   "email": "user@example.com",
   "systemRole": null,
+  "isSystemAdmin": false,
   "sites": [
     { "siteKey": "community", "role": "admin", "isAdmin": true },
     { "siteKey": "college", "role": "member", "isAdmin": false }
@@ -304,7 +320,8 @@ GET /settings/user-role?site=community           → Uses authenticated user fro
 ```
 
 **Notes:**
-- `isSiteAdmin` is `true` if user has "admin" role OR is a system admin (SU)
+- `isSystemAdmin` is `true` for SU users - they have access to ALL sites as admin
+- For SU users, `isSiteMember` and `isSiteAdmin` are always `true` regardless of UserSite entries
 - `systemRole` will be "SU" for super admins who have admin access to all sites
 - Site key matching is case-insensitive and strips "pickleball." prefix
 

@@ -494,8 +494,12 @@ public class SettingsController : ControllerBase
         {
             UserId = user.Id,
             Email = user.Email,
-            SystemRole = user.SystemRole
+            SystemRole = user.SystemRole,
+            IsSystemAdmin = user.SystemRole == "SU"
         };
+
+        // Check if user is a system admin (SU) - they have access to ALL sites
+        var isSystemAdmin = user.SystemRole == "SU";
 
         // If site specified, get role for that site
         if (!string.IsNullOrEmpty(siteKey))
@@ -504,22 +508,55 @@ public class SettingsController : ControllerBase
                 .FirstOrDefault(us => us.SiteKey.Equals(siteKey, StringComparison.OrdinalIgnoreCase));
 
             response.SiteKey = siteKey;
-            response.SiteRole = userSite?.Role;
-            response.IsSiteMember = userSite != null && userSite.IsActive;
-            response.IsSiteAdmin = userSite?.Role == "admin" || user.SystemRole == "SU";
+
+            // SU users are effectively admins of all sites
+            if (isSystemAdmin)
+            {
+                response.SiteRole = userSite?.Role ?? "admin"; // Show actual role if exists, otherwise "admin"
+                response.IsSiteMember = true; // SU has access to all sites
+                response.IsSiteAdmin = true;
+            }
+            else
+            {
+                response.SiteRole = userSite?.Role;
+                response.IsSiteMember = userSite != null && userSite.IsActive;
+                response.IsSiteAdmin = userSite?.Role == "admin";
+            }
         }
         else
         {
             // Return all site memberships
-            response.Sites = user.UserSites
-                .Where(us => us.IsActive)
-                .Select(us => new UserSiteRoleInfo
-                {
-                    SiteKey = us.SiteKey,
-                    Role = us.Role,
-                    IsAdmin = us.Role == "admin" || user.SystemRole == "SU"
-                })
-                .ToList();
+            // For SU users, also include all sites they have access to
+            if (isSystemAdmin)
+            {
+                // Get all active sites for SU users
+                var allSites = await _context.Sites
+                    .Where(s => s.IsActive)
+                    .Select(s => s.Key)
+                    .ToListAsync();
+
+                response.Sites = allSites.Select(siteKey => {
+                    var userSite = user.UserSites.FirstOrDefault(us => us.SiteKey == siteKey);
+                    return new UserSiteRoleInfo
+                    {
+                        SiteKey = siteKey,
+                        Role = userSite?.Role ?? "admin",
+                        IsAdmin = true
+                    };
+                }).ToList();
+            }
+            else
+            {
+                response.Sites = user.UserSites
+                    .Where(us => us.IsActive)
+                    .Select(us => new UserSiteRoleInfo
+                    {
+                        SiteKey = us.SiteKey,
+                        Role = us.Role,
+                        IsAdmin = us.Role == "admin"
+                    })
+                    .ToList();
+            }
         }
 
         return Ok(response);
@@ -567,6 +604,7 @@ public class UserRoleResponse
     public int UserId { get; set; }
     public string? Email { get; set; }
     public string? SystemRole { get; set; }
+    public bool IsSystemAdmin { get; set; } // True if user is SU (has access to all sites)
     public string? SiteKey { get; set; }
     public string? SiteRole { get; set; }
     public bool? IsSiteMember { get; set; }
