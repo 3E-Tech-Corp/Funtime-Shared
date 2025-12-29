@@ -163,6 +163,52 @@ public class SettingsController : ControllerBase
     }
 
     /// <summary>
+    /// Get logo URL by site key (public endpoint)
+    /// If site key is blank or not provided, returns the main logo URL.
+    /// If site key is provided, returns that site's logo URL.
+    /// Strips "pickleball." prefix if present.
+    /// </summary>
+    [HttpGet("logo-url")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LogoUrlResponse>> GetLogoUrl([FromQuery] string? site)
+    {
+        // Strip "pickleball." prefix if present
+        var siteKey = site;
+        if (!string.IsNullOrEmpty(siteKey) && siteKey.StartsWith("pickleball.", StringComparison.OrdinalIgnoreCase))
+        {
+            siteKey = siteKey.Substring("pickleball.".Length);
+        }
+
+        // If no site key, return main logo
+        if (string.IsNullOrWhiteSpace(siteKey))
+        {
+            var mainLogo = await _context.Assets
+                .Where(a => a.Category == MainLogoCategory && a.SiteKey == MainLogoSiteKey)
+                .OrderByDescending(a => a.CreatedAt)
+                .FirstOrDefaultAsync();
+
+            return Ok(new LogoUrlResponse
+            {
+                LogoUrl = mainLogo != null ? $"/asset/{mainLogo.Id}" : null
+            });
+        }
+
+        // Look up site by key (case-insensitive)
+        var siteRecord = await _context.Sites
+            .FirstOrDefaultAsync(s => s.Key.ToLower() == siteKey.ToLower());
+
+        if (siteRecord == null)
+        {
+            return Ok(new LogoUrlResponse { LogoUrl = null });
+        }
+
+        return Ok(new LogoUrlResponse
+        {
+            LogoUrl = siteRecord.LogoUrl
+        });
+    }
+
+    /// <summary>
     /// Get Terms of Service content (public endpoint)
     /// </summary>
     [HttpGet("terms-of-service")]
@@ -297,4 +343,9 @@ public class LegalContentResponse
 public class LegalContentRequest
 {
     public string? Content { get; set; }
+}
+
+public class LogoUrlResponse
+{
+    public string? LogoUrl { get; set; }
 }

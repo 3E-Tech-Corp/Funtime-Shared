@@ -177,10 +177,30 @@ POST /auth/password-reset/register  - Quick register (from reset flow)
 ### Settings Endpoints (Public)
 
 ```
-GET /settings/logo                  - Get main logo
+GET /settings/logo                  - Get main logo info
+GET /settings/logo-url?site={key}   - Get logo URL by site key (see below)
 GET /settings/terms-of-service      - Get Terms of Service
 GET /settings/privacy-policy        - Get Privacy Policy
 ```
+
+#### Logo URL Endpoint
+
+Simple endpoint to get the logo URL for a site:
+
+```
+GET /settings/logo-url              → Returns main logo URL
+GET /settings/logo-url?site=community → Returns community site's logo URL
+GET /settings/logo-url?site=pickleball.community → Also works (prefix stripped)
+```
+
+Response:
+```json
+{
+  "logoUrl": "/asset/5"
+}
+```
+
+Use this to build the full URL: `https://shared.funtimepb.com/api/asset/5`
 
 ### Admin Endpoints (Require Bearer Token)
 
