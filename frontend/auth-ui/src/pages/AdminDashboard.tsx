@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle, ExternalLink } from 'lucide-react';
+import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle, ExternalLink, Radio } from 'lucide-react';
 import { adminApi, assetApi, settingsApi } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
 import { NotificationsTab } from '../components/NotificationsTab';
+import { PushTestTab } from '../components/PushTestTab';
 import { PaymentModal } from '../components/PaymentModal';
 import { SiteLogoPreview } from '../components/SiteLogoOverlay';
 import { RichTextEditor } from '../components/RichTextEditor';
@@ -12,7 +13,7 @@ import { config } from '../utils/config';
 // Stripe publishable key from runtime config
 const STRIPE_PUBLISHABLE_KEY = config.STRIPE_PUBLISHABLE_KEY;
 
-type Tab = 'overview' | 'sites' | 'users' | 'payments' | 'notifications' | 'settings';
+type Tab = 'overview' | 'sites' | 'users' | 'payments' | 'notifications' | 'push' | 'settings';
 
 export function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -499,6 +500,17 @@ export function AdminDashboardPage() {
           >
             <Bell className="w-4 h-4" />
             Notifications
+          </button>
+          <button
+            onClick={() => setActiveTab('push')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'push'
+                ? 'bg-primary-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Radio className="w-4 h-4" />
+            Push Test
           </button>
           <button
             onClick={() => setActiveTab('settings')}
@@ -1058,6 +1070,9 @@ export function AdminDashboardPage() {
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && <NotificationsTab />}
+
+        {/* Push Test Tab */}
+        {activeTab === 'push' && <PushTestTab />}
 
         {/* Settings Tab */}
         {activeTab === 'settings' && (
