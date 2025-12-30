@@ -945,6 +945,71 @@ export const notificationApi = {
   },
 };
 
+// Push Notification API - for sending real-time notifications
+export interface PushNotificationPayload {
+  type: string;
+  payload?: unknown;
+}
+
+export interface UserConnectionStatus {
+  userId: number;
+  isConnected: boolean;
+}
+
+export interface BatchNotificationResult {
+  userId: number;
+  isConnected: boolean;
+}
+
+export const pushApi = {
+  // Send notification to a specific user
+  async sendToUser(userId: number, type: string, payload?: unknown): Promise<{ success: boolean; isUserConnected: boolean }> {
+    return request(`/api/push/user/${userId}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type, payload }),
+    });
+  },
+
+  // Send notification to all users on a site
+  async sendToSite(siteKey: string, type: string, payload?: unknown): Promise<{ success: boolean }> {
+    return request(`/api/push/site/${siteKey}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type, payload }),
+    });
+  },
+
+  // Broadcast to all connected users (admin only)
+  async broadcast(type: string, payload?: unknown): Promise<{ success: boolean }> {
+    return request('/api/push/broadcast', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type, payload }),
+    });
+  },
+
+  // Check if a user is connected
+  async getUserStatus(userId: number): Promise<UserConnectionStatus> {
+    return request(`/api/push/user/${userId}/status`, {
+      headers: getAuthHeaders(),
+    });
+  },
+
+  // Send to multiple users at once
+  async sendToUsers(
+    userIds: number[],
+    type: string,
+    payload?: unknown
+  ): Promise<{ success: boolean; results: BatchNotificationResult[] }> {
+    return request('/api/push/users/batch', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ userIds, type, payload }),
+    });
+  },
+};
+
 // Settings API
 export interface MainLogoResponse {
   hasLogo: boolean;
