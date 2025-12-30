@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.Services;
+using Funtime.Identity.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +32,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateLifetime = true,
             ClockSkew = TimeSpan.Zero
         };
+
+        // Allow JWT token from query string for SignalR
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 builder.Services.AddAuthorization();
@@ -44,6 +60,10 @@ builder.Services.AddScoped<IStripeService, StripeService>();
 
 // HttpClient for OAuth providers
 builder.Services.AddHttpClient();
+
+// SignalR for real-time notifications
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<INotificationService, NotificationService>();
 
 // File Storage - configurable between local and S3
 var storageType = builder.Configuration["Storage:Type"] ?? "local";
@@ -144,6 +164,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// SignalR hubs
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 // Apply migrations automatically in development
 if (app.Environment.IsDevelopment())
