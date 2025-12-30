@@ -163,7 +163,28 @@ export const authApi = {
       body: JSON.stringify(body),
     });
   },
+
+  // Get available OAuth providers
+  async getOAuthProviders(): Promise<OAuthProvider[]> {
+    return request('/auth/oauth/providers', {});
+  },
+
+  // Get OAuth start URL (for redirect)
+  getOAuthStartUrl(provider: string, returnUrl?: string, siteKey?: string): string {
+    const params = new URLSearchParams();
+    if (returnUrl) params.set('returnUrl', returnUrl);
+    if (siteKey) params.set('site', siteKey);
+    const queryString = params.toString();
+    return `${API_BASE_URL}/auth/oauth/${provider}/start${queryString ? '?' + queryString : ''}`;
+  },
 };
+
+// OAuth provider info
+export interface OAuthProvider {
+  name: string;
+  displayName: string;
+  isConfigured: boolean;
+}
 
 // Admin types
 export interface Site {

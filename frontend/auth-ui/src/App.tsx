@@ -6,6 +6,7 @@ import { SiteSelectionPage } from './pages/SiteSelection';
 import { AdminDashboardPage } from './pages/AdminDashboard';
 import { TermsOfServicePage } from './pages/TermsOfService';
 import { PrivacyPolicyPage } from './pages/PrivacyPolicy';
+import { OAuthCallbackPage } from './pages/OAuthCallback';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/oauth-callback" element={<OAuthCallbackPage />} />
         {/* Default redirect to login */}
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

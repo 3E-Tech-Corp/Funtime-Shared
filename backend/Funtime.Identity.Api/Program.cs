@@ -42,6 +42,9 @@ builder.Services.AddScoped<ISmsService, TwilioSmsService>();
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 builder.Services.AddScoped<IStripeService, StripeService>();
 
+// HttpClient for OAuth providers
+builder.Services.AddHttpClient();
+
 // File Storage - configurable between local and S3
 var storageType = builder.Configuration["Storage:Type"] ?? "local";
 if (storageType.Equals("s3", StringComparison.OrdinalIgnoreCase))
