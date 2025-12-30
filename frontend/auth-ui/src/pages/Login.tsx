@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, Mail, Phone, Loader2, MessageSquare } from 'lucide-react';
-import { authApi, settingsApi, OAuthProvider } from '../utils/api';
+import { authApi, settingsApi } from '../utils/api';
+import type { OAuthProvider } from '../utils/api';
 import { redirectWithToken, getSiteDisplayName, getSiteKey, getReturnTo, getRedirectUrl } from '../utils/redirect';
 import { SiteLogoOverlay } from '../components/SiteLogoOverlay';
 
