@@ -301,10 +301,10 @@ public class SettingsController : ControllerBase
         // Size classes
         var (containerSize, overlaySize) = size?.ToLower() switch
         {
-            "sm" => ("height:2rem", "height:1rem;width:1rem"),
-            "lg" => ("height:3.5rem", "height:1.75rem;width:1.75rem"),
-            "xl" => ("height:5rem", "height:2.5rem;width:2.5rem"),
-            _ => ("height:2.5rem", "height:1.25rem;width:1.25rem") // md default
+            "sm" => ("height:2rem", "height:50%;width:50%"),
+            "lg" => ("height:3.5rem", "height:50%;width:50%"),
+            "xl" => ("height:5rem", "height:50%;width:50%"),
+            _ => ("height:2.5rem", "height:50%;width:50%") // md default
         };
 
         // Build HTML with absolute URLs
