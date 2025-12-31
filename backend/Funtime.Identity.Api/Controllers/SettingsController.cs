@@ -298,14 +298,26 @@ public class SettingsController : ControllerBase
             }
         }
 
-        // Size classes
-        var (containerSize, overlaySize) = size?.ToLower() switch
+        // Size - supports predefined (sm, md, lg, xl) or custom CSS values (10rem, 100px, 5em, etc.)
+        string containerSize;
+        const string overlaySize = "height:50%;width:50%";
+
+        if (!string.IsNullOrEmpty(size) && System.Text.RegularExpressions.Regex.IsMatch(size, @"^\d+(\.\d+)?(rem|em|px|vh|vw|%)$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
         {
-            "sm" => ("height:2rem", "height:50%;width:50%"),
-            "lg" => ("height:3.5rem", "height:50%;width:50%"),
-            "xl" => ("height:5rem", "height:50%;width:50%"),
-            _ => ("height:2.5rem", "height:50%;width:50%") // md default
-        };
+            // Custom CSS size value
+            containerSize = $"height:{size}";
+        }
+        else
+        {
+            // Predefined sizes
+            containerSize = size?.ToLower() switch
+            {
+                "sm" => "height:2rem",
+                "lg" => "height:3.5rem",
+                "xl" => "height:5rem",
+                _ => "height:2.5rem" // md default
+            };
+        }
 
         // Build HTML with absolute URLs
         string html;
