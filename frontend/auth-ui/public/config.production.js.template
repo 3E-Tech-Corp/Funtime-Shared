@@ -1,0 +1,9 @@
+// Production runtime configuration
+// Copy this to config.js on the production server
+window.__FUNTIME_CONFIG__ = {
+  // Production API URL - update this to match your deployment
+  API_URL: "https://shared.funtimepb.com/api",
+
+  // Production Stripe publishable key (get from Stripe Dashboard > Live mode)
+  STRIPE_PUBLISHABLE_KEY: "pk_live_REPLACE_WITH_YOUR_LIVE_KEY"
+};
