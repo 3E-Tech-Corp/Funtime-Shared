@@ -581,6 +581,54 @@ export const adminApi = {
   },
 };
 
+// Verification API - for users to verify their own email/phone
+export interface VerifyRequestResponse {
+  success: boolean;
+  message: string;
+  maskedIdentifier?: string;
+  expiresInSeconds: number;
+}
+
+export interface VerifyConfirmResponse {
+  success: boolean;
+  message: string;
+  verified: boolean;
+}
+
+export interface VerifyStatusResponse {
+  isEmailVerified: boolean;
+  isPhoneVerified: boolean;
+  email?: string;
+  phone?: string;
+}
+
+export const verifyApi = {
+  // Request a verification code to be sent
+  async requestCode(type: 'email' | 'phone'): Promise<VerifyRequestResponse> {
+    return request('/api/verify/request', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type }),
+    });
+  },
+
+  // Confirm verification with the received code
+  async confirmCode(type: 'email' | 'phone', code: string): Promise<VerifyConfirmResponse> {
+    return request('/api/verify/confirm', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type, code }),
+    });
+  },
+
+  // Get current verification status
+  async getStatus(): Promise<VerifyStatusResponse> {
+    return request('/api/verify/status', {
+      headers: getAuthHeaders(),
+    });
+  },
+};
+
 // Admin payment method type
 export interface AdminPaymentMethod {
   id: number;
