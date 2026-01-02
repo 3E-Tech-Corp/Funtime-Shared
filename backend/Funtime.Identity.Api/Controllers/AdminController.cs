@@ -17,17 +17,26 @@ public class AdminController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IFileStorageService _fileStorageService;
     private readonly IStripeService _stripeService;
+    private readonly IOtpService _otpService;
+    private readonly IEmailService _emailService;
+    private readonly ISmsService _smsService;
     private readonly ILogger<AdminController> _logger;
 
     public AdminController(
         ApplicationDbContext context,
         IFileStorageService fileStorageService,
         IStripeService stripeService,
+        IOtpService otpService,
+        IEmailService emailService,
+        ISmsService smsService,
         ILogger<AdminController> logger)
     {
         _context = context;
         _fileStorageService = fileStorageService;
         _stripeService = stripeService;
+        _otpService = otpService;
+        _emailService = emailService;
+        _smsService = smsService;
         _logger = logger;
     }
 
@@ -512,6 +521,124 @@ public class AdminController : ControllerBase
             IsActive = userSite.IsActive,
             JoinedAt = userSite.JoinedAt
         });
+    }
+
+    /// <summary>
+    /// Send verification OTP to user's email or phone
+    /// </summary>
+    [HttpPost("users/{id}/send-verification")]
+    public async Task<ActionResult> SendVerification(int id, [FromBody] AdminSendVerificationRequest request)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        string identifier;
+        string method;
+
+        if (request.Type == "email")
+        {
+            if (string.IsNullOrEmpty(user.Email))
+            {
+                return BadRequest(new { message = "User has no email address." });
+            }
+            if (user.IsEmailVerified)
+            {
+                return BadRequest(new { message = "Email is already verified." });
+            }
+            identifier = user.Email;
+            method = "email";
+        }
+        else if (request.Type == "phone")
+        {
+            if (string.IsNullOrEmpty(user.PhoneNumber))
+            {
+                return BadRequest(new { message = "User has no phone number." });
+            }
+            if (user.IsPhoneVerified)
+            {
+                return BadRequest(new { message = "Phone is already verified." });
+            }
+            identifier = user.PhoneNumber;
+            method = "SMS";
+        }
+        else
+        {
+            return BadRequest(new { message = "Type must be 'email' or 'phone'." });
+        }
+
+        var (success, message) = await _otpService.SendOtpAsync(identifier);
+        if (!success)
+        {
+            return BadRequest(new { message = $"Failed to send verification: {message}" });
+        }
+
+        _logger.LogInformation("Admin sent verification {Method} to user {UserId} ({Identifier})", method, id, identifier);
+
+        return Ok(new { success = true, message = $"Verification code sent via {method}." });
+    }
+
+    /// <summary>
+    /// Send a test email to a user
+    /// </summary>
+    [HttpPost("users/{id}/send-test-email")]
+    public async Task<ActionResult> SendTestEmail(int id, [FromBody] AdminSendTestMessageRequest request)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        if (string.IsNullOrEmpty(user.Email))
+        {
+            return BadRequest(new { message = "User has no email address." });
+        }
+
+        var subject = request.Subject ?? "Test Email from Funtime Pickleball";
+        var body = request.Message ?? "This is a test email from the Funtime Pickleball admin panel. If you received this, email delivery is working correctly.";
+
+        var success = await _emailService.SendEmailAsync(user.Email, subject, body);
+        if (!success)
+        {
+            return BadRequest(new { message = "Failed to send test email." });
+        }
+
+        _logger.LogInformation("Admin sent test email to user {UserId} ({Email})", id, user.Email);
+
+        return Ok(new { success = true, message = $"Test email sent to {user.Email}." });
+    }
+
+    /// <summary>
+    /// Send a test SMS to a user
+    /// </summary>
+    [HttpPost("users/{id}/send-test-sms")]
+    public async Task<ActionResult> SendTestSms(int id, [FromBody] AdminSendTestMessageRequest request)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found." });
+        }
+
+        if (string.IsNullOrEmpty(user.PhoneNumber))
+        {
+            return BadRequest(new { message = "User has no phone number." });
+        }
+
+        var message = request.Message ?? "Test SMS from Funtime Pickleball admin panel.";
+
+        var success = await _smsService.SendSmsAsync(user.PhoneNumber, message);
+        if (!success)
+        {
+            return BadRequest(new { message = "Failed to send test SMS." });
+        }
+
+        _logger.LogInformation("Admin sent test SMS to user {UserId} ({Phone})", id, user.PhoneNumber);
+
+        return Ok(new { success = true, message = $"Test SMS sent to {user.PhoneNumber}." });
     }
 
     #endregion

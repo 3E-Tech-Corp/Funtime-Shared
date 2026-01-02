@@ -238,6 +238,34 @@ public class AdminPaymentMethodResponse
 
 #endregion
 
+#region Admin Messaging
+
+public class AdminSendVerificationRequest
+{
+    /// <summary>
+    /// Type of verification to send: "email" or "phone"
+    /// </summary>
+    [Required]
+    public string Type { get; set; } = string.Empty;
+}
+
+public class AdminSendTestMessageRequest
+{
+    /// <summary>
+    /// Custom subject for email (optional)
+    /// </summary>
+    [MaxLength(200)]
+    public string? Subject { get; set; }
+
+    /// <summary>
+    /// Custom message body (optional)
+    /// </summary>
+    [MaxLength(1000)]
+    public string? Message { get; set; }
+}
+
+#endregion
+
 #region Stats
 
 public class AdminStatsResponse

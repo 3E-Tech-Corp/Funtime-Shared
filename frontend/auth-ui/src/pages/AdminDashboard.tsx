@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle, ExternalLink, Radio } from 'lucide-react';
+import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle, ExternalLink, Radio, Mail, Phone, Send, AlertCircle, ShieldCheck } from 'lucide-react';
 import { adminApi, assetApi, settingsApi } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
@@ -65,6 +65,12 @@ export function AdminDashboardPage() {
   // Password reset state
   const [newPassword, setNewPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
+
+  // Verification and test message state
+  const [sendingVerification, setSendingVerification] = useState<'email' | 'phone' | null>(null);
+  const [sendingTestEmail, setSendingTestEmail] = useState(false);
+  const [sendingTestSms, setSendingTestSms] = useState(false);
+  const [messageSuccess, setMessageSuccess] = useState<string | null>(null);
 
   // Settings state
   const [mainLogoUrl, setMainLogoUrl] = useState<string | null>(null);
@@ -742,20 +748,172 @@ export function AdminDashboardPage() {
                 <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto m-4">
                   <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                     <h3 className="text-lg font-semibold">User Details</h3>
-                    <button onClick={() => { setSelectedUser(null); setNewPassword(''); }} className="text-gray-400 hover:text-gray-600">
+                    <button onClick={() => { setSelectedUser(null); setNewPassword(''); setMessageSuccess(null); }} className="text-gray-400 hover:text-gray-600">
                       <X className="w-5 h-5" />
                     </button>
                   </div>
                   <div className="p-6 space-y-6">
+                    {/* Success message */}
+                    {messageSuccess && (
+                      <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4" />
+                        {messageSuccess}
+                        <button onClick={() => setMessageSuccess(null)} className="ml-auto text-green-500 hover:text-green-700">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Email Section */}
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4 text-gray-500" />
+                          <label className="text-sm font-medium text-gray-700">Email</label>
+                          {selectedUser.isEmailVerified ? (
+                            <span className="flex items-center gap-1 text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                              <CheckCircle className="w-3 h-3" />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                              <AlertCircle className="w-3 h-3" />
+                              Not verified
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="font-medium text-gray-900 mb-3">{selectedUser.email || '-'}</p>
+                      {selectedUser.email && (
+                        <div className="flex gap-2">
+                          {!selectedUser.isEmailVerified && (
+                            <button
+                              onClick={async () => {
+                                setSendingVerification('email');
+                                setMessageSuccess(null);
+                                try {
+                                  const result = await adminApi.sendVerification(selectedUser.id, 'email');
+                                  setMessageSuccess(result.message);
+                                } catch (err) {
+                                  setError(err instanceof Error ? err.message : 'Failed to send verification');
+                                } finally {
+                                  setSendingVerification(null);
+                                }
+                              }}
+                              disabled={sendingVerification === 'email'}
+                              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                            >
+                              {sendingVerification === 'email' ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <ShieldCheck className="w-3 h-3" />
+                              )}
+                              Send Verification
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              setSendingTestEmail(true);
+                              setMessageSuccess(null);
+                              try {
+                                const result = await adminApi.sendTestEmail(selectedUser.id);
+                                setMessageSuccess(result.message);
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : 'Failed to send test email');
+                              } finally {
+                                setSendingTestEmail(false);
+                              }
+                            }}
+                            disabled={sendingTestEmail}
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            {sendingTestEmail ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Send className="w-3 h-3" />
+                            )}
+                            Send Test Email
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Phone Section */}
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Phone className="w-4 h-4 text-gray-500" />
+                          <label className="text-sm font-medium text-gray-700">Phone</label>
+                          {selectedUser.isPhoneVerified ? (
+                            <span className="flex items-center gap-1 text-xs text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
+                              <CheckCircle className="w-3 h-3" />
+                              Verified
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full">
+                              <AlertCircle className="w-3 h-3" />
+                              Not verified
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="font-medium text-gray-900 mb-3">{selectedUser.phoneNumber || '-'}</p>
+                      {selectedUser.phoneNumber && (
+                        <div className="flex gap-2">
+                          {!selectedUser.isPhoneVerified && (
+                            <button
+                              onClick={async () => {
+                                setSendingVerification('phone');
+                                setMessageSuccess(null);
+                                try {
+                                  const result = await adminApi.sendVerification(selectedUser.id, 'phone');
+                                  setMessageSuccess(result.message);
+                                } catch (err) {
+                                  setError(err instanceof Error ? err.message : 'Failed to send verification');
+                                } finally {
+                                  setSendingVerification(null);
+                                }
+                              }}
+                              disabled={sendingVerification === 'phone'}
+                              className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50"
+                            >
+                              {sendingVerification === 'phone' ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <ShieldCheck className="w-3 h-3" />
+                              )}
+                              Send Verification
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              setSendingTestSms(true);
+                              setMessageSuccess(null);
+                              try {
+                                const result = await adminApi.sendTestSms(selectedUser.id);
+                                setMessageSuccess(result.message);
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : 'Failed to send test SMS');
+                              } finally {
+                                setSendingTestSms(false);
+                              }
+                            }}
+                            disabled={sendingTestSms}
+                            className="flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            {sendingTestSms ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Send className="w-3 h-3" />
+                            )}
+                            Send Test SMS
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* System Role & Last Login */}
                     <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm text-gray-500">Email</label>
-                        <p className="font-medium">{selectedUser.email || '-'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm text-gray-500">Phone</label>
-                        <p className="font-medium">{selectedUser.phoneNumber || '-'}</p>
-                      </div>
                       <div>
                         <label className="text-sm text-gray-500">System Role</label>
                         <p className="font-medium">{selectedUser.systemRole || 'None'}</p>

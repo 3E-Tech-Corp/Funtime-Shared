@@ -546,6 +546,33 @@ export const adminApi = {
       }),
     });
   },
+
+  // Send verification OTP to user's email or phone
+  async sendVerification(userId: number, type: 'email' | 'phone'): Promise<{ success: boolean; message: string }> {
+    return request(`/admin/users/${userId}/send-verification`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ type }),
+    });
+  },
+
+  // Send test email to user
+  async sendTestEmail(userId: number, subject?: string, message?: string): Promise<{ success: boolean; message: string }> {
+    return request(`/admin/users/${userId}/send-test-email`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ subject, message }),
+    });
+  },
+
+  // Send test SMS to user
+  async sendTestSms(userId: number, message?: string): Promise<{ success: boolean; message: string }> {
+    return request(`/admin/users/${userId}/send-test-sms`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ message }),
+    });
+  },
 };
 
 // Admin payment method type
