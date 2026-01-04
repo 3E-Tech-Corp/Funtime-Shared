@@ -14,6 +14,7 @@ public class ApplicationDbContext : DbContext
     public DbSet<OtpRequest> OtpRequests { get; set; }
     public DbSet<OtpRateLimit> OtpRateLimits { get; set; }
     public DbSet<ExternalLogin> ExternalLogins { get; set; }
+    public DbSet<CredentialChangeOtp> CredentialChangeOtps { get; set; }
 
     // Site tables
     public DbSet<Site> Sites { get; set; }
@@ -64,6 +65,13 @@ public class ApplicationDbContext : DbContext
             entity.HasIndex(e => new { e.Provider, e.ProviderUserId }).IsUnique();
             entity.HasIndex(e => new { e.UserId, e.Provider }).IsUnique();
             entity.HasIndex(e => e.UserId);
+        });
+
+        // CredentialChangeOtp configuration
+        modelBuilder.Entity<CredentialChangeOtp>(entity =>
+        {
+            entity.HasIndex(e => new { e.UserId, e.ChangeType, e.NewValue, e.ExpiresAt });
+            entity.HasIndex(e => e.ExpiresAt);
         });
 
         // UserProfile configuration

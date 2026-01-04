@@ -629,6 +629,62 @@ export const verifyApi = {
   },
 };
 
+// Credential change types
+export interface CredentialChangeRequestResponse {
+  success: boolean;
+  message: string;
+}
+
+export interface CredentialChangeVerifyResponse {
+  success: boolean;
+  message: string;
+  token?: string;
+  user?: {
+    id: number;
+    email?: string;
+    phone?: string;
+  };
+}
+
+// Credential change API - for changing email/phone with OTP verification
+export const credentialChangeApi = {
+  // Request email change - sends OTP to new email
+  async requestEmailChange(newEmail: string): Promise<CredentialChangeRequestResponse> {
+    return request('/api/auth/change-email/request', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newEmail }),
+    });
+  },
+
+  // Verify email change with OTP code
+  async verifyEmailChange(newEmail: string, code: string): Promise<CredentialChangeVerifyResponse> {
+    return request('/api/auth/change-email/verify', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newEmail, code }),
+    });
+  },
+
+  // Request phone change - sends OTP via SMS
+  async requestPhoneChange(newPhoneNumber: string): Promise<CredentialChangeRequestResponse> {
+    return request('/api/auth/change-phone/request', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newPhoneNumber }),
+    });
+  },
+
+  // Verify phone change with OTP code
+  async verifyPhoneChange(newPhoneNumber: string, code: string): Promise<CredentialChangeVerifyResponse> {
+    return request('/api/auth/change-phone/verify', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ newPhoneNumber, code }),
+    });
+  },
+};
+
 // Admin payment method type
 export interface AdminPaymentMethod {
   id: number;
