@@ -246,7 +246,6 @@ export const SharedChangeCredential: React.FC<SharedChangeCredentialProps> = ({
   onSuccess,
   onError,
   onCancel,
-  siteName = 'Funtime',
   primaryColor = 'blue',
   authToken
 }) => {
