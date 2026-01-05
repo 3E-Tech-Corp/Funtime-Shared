@@ -509,7 +509,7 @@ export function NotificationsTab() {
               {tasks.map((task) => (
                 <div key={task.task_ID} className="p-4 flex items-center justify-between">
                   <div>
-                    <p className="font-medium">{task.taskCode}</p>
+                    <p className="font-medium"><span className="text-gray-400 text-sm mr-2">#{task.task_ID}</span>{task.taskCode}</p>
                     <p className="text-sm text-gray-500">
                       {task.taskType} - {task.mailTo || task.mailFrom || '(no recipients)'}
                     </p>
