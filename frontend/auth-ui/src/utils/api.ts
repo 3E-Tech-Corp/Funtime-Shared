@@ -140,8 +140,8 @@ export const authApi = {
     });
   },
 
-  // Complete password reset with verification code
-  async resetPassword(identifier: string, mode: 'email' | 'phone', code: string, newPassword: string): Promise<ApiResponse> {
+  // Complete password reset with verification code - returns token for auto-login
+  async resetPassword(identifier: string, mode: 'email' | 'phone', code: string, newPassword: string): Promise<AuthResponse> {
     const body = mode === 'email'
       ? { email: identifier, code, newPassword }
       : { phoneNumber: identifier, code, newPassword };

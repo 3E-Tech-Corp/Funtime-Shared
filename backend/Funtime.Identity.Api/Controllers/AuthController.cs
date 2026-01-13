@@ -977,15 +977,15 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// Complete password reset with verified code
+    /// Complete password reset with verified code - returns token for auto-login
     /// </summary>
     [HttpPost("password-reset/complete")]
-    public async Task<ActionResult<ApiResponse>> CompletePasswordReset([FromBody] PasswordResetWithCodeRequest request)
+    public async Task<ActionResult<AuthResponse>> CompletePasswordReset([FromBody] PasswordResetWithCodeRequest request)
     {
         // Validate that either email or phone is provided
         if (string.IsNullOrEmpty(request.Email) && string.IsNullOrEmpty(request.PhoneNumber))
         {
-            return BadRequest(new ApiResponse
+            return BadRequest(new AuthResponse
             {
                 Success = false,
                 Message = "Either email or phone number is required."
@@ -1002,7 +1002,7 @@ public class AuthController : ControllerBase
 
         if (!success)
         {
-            return BadRequest(new ApiResponse
+            return BadRequest(new AuthResponse
             {
                 Success = false,
                 Message = message
@@ -1012,7 +1012,7 @@ public class AuthController : ControllerBase
         // For password reset, user must exist
         if (!matchedUserId.HasValue)
         {
-            return BadRequest(new ApiResponse
+            return BadRequest(new AuthResponse
             {
                 Success = false,
                 Message = "No account found with this email or phone number."
@@ -1022,7 +1022,7 @@ public class AuthController : ControllerBase
         var user = await _context.Users.FindAsync(matchedUserId.Value);
         if (user == null)
         {
-            return BadRequest(new ApiResponse
+            return BadRequest(new AuthResponse
             {
                 Success = false,
                 Message = "Account not found."
@@ -1032,14 +1032,20 @@ public class AuthController : ControllerBase
         // Update password
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         user.UpdatedAt = DateTime.UtcNow;
+        user.LastLoginAt = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Password reset successful for user {UserId}", user.Id);
 
-        return Ok(new ApiResponse
+        // Generate token so user is auto-logged in
+        var token = _jwtService.GenerateToken(user);
+
+        return Ok(new AuthResponse
         {
             Success = true,
-            Message = "Password reset successfully. You can now login with your new password."
+            Token = token,
+            Message = "Password reset successfully.",
+            User = MapToUserResponse(user)
         });
     }
 

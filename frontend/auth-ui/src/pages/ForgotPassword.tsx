@@ -180,6 +180,17 @@ export function ForgotPasswordPage() {
     try {
       const response = await authApi.resetPassword(recoveryValue, mode, otpCode, newPassword);
       if (response.success) {
+        // Store token if provided (auto-login)
+        if (response.token) {
+          localStorage.setItem('auth_token', response.token);
+
+          // Check if there's a redirect URL to return to calling site
+          const redirectUrl = getRedirectUrl();
+          if (redirectUrl) {
+            redirectWithToken(response.token);
+            return;
+          }
+        }
         setStep('success');
       } else {
         setError(response.message || 'Failed to reset password');
