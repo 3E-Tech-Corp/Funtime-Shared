@@ -627,7 +627,7 @@ export function NotificationsTab() {
             </div>
             <div className="divide-y divide-gray-200">
               {historyItems.map((item) => (
-                <div key={item.iD} className="p-4 flex items-center justify-between">
+                <div key={item.id} className="p-4 flex items-center justify-between">
                   <div>
                     <p className="font-medium">{item.toList}</p>
                     <p className="text-sm text-gray-500">{item.subject || item.taskCode || '(no subject)'}</p>
@@ -644,7 +644,7 @@ export function NotificationsTab() {
                     }`}>
                       {item.status}
                     </span>
-                    <button onClick={() => handleRetryHistory(item.iD)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
+                    <button onClick={() => handleRetryHistory(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
                       <RefreshCw className="w-4 h-4 text-blue-500" />
                     </button>
                   </div>

@@ -899,7 +899,7 @@ export interface OutboxRow {
 }
 
 export interface HistoryRow {
-  iD: number;
+  id: number;
   taskId?: number;
   taskCode?: string;
   toList?: string;
