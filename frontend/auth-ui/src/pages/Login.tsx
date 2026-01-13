@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Eye, EyeOff, LogIn, Mail, Phone, Loader2, MessageSquare } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { authApi, settingsApi } from '../utils/api';
 import type { OAuthProvider } from '../utils/api';
 import { redirectWithToken, getSiteDisplayName, getSiteKey, getReturnTo, getRedirectUrl } from '../utils/redirect';
@@ -41,6 +42,7 @@ const MicrosoftIcon = () => (
 );
 
 export function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<AuthMode>('email');
@@ -284,10 +286,10 @@ export function LoginPage() {
           />
           <div className="flex-1 text-center">
             <h1 className="text-2xl font-bold text-gray-900">{getSiteTitle()}</h1>
-            <h2 className="text-lg text-gray-600">Sign in</h2>
+            <h2 className="text-lg text-gray-600">{t('auth.signIn')}</h2>
             {returnTo && (
               <p className="text-sm text-gray-500">
-                to continue to {returnTo}
+                {t('auth.continueTo', { destination: returnTo })}
               </p>
             )}
           </div>
@@ -306,7 +308,7 @@ export function LoginPage() {
               }`}
             >
               <Mail className="w-4 h-4" />
-              Email
+              {t('auth.email')}
             </button>
             <button
               onClick={() => setMode('phone')}
@@ -317,7 +319,7 @@ export function LoginPage() {
               }`}
             >
               <Phone className="w-4 h-4" />
-              Phone
+              {t('auth.phone')}
             </button>
           </div>
 
@@ -340,7 +342,7 @@ export function LoginPage() {
                     className="w-full flex items-center justify-center gap-3 py-2.5 px-4 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700 font-medium"
                   >
                     {getProviderIcon(provider.name)}
-                    Continue with {provider.displayName}
+                    {t('auth.continueWith', { provider: provider.displayName })}
                   </button>
                 ))}
               </div>
@@ -350,7 +352,7 @@ export function LoginPage() {
                   <div className="w-full border-t border-gray-300" />
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500">or continue with</span>
+                  <span className="px-4 bg-white text-gray-500">{t('auth.orContinueWith')}</span>
                 </div>
               </div>
             </>
@@ -361,7 +363,7 @@ export function LoginPage() {
             <form onSubmit={handleEmailLogin} className="space-y-5">
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                  Email address
+                  {t('auth.emailAddress')}
                 </label>
                 <input
                   type="email"
@@ -370,13 +372,13 @@ export function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                  placeholder="you@example.com"
+                  placeholder={t('auth.emailPlaceholder')}
                 />
               </div>
 
               <div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                  Password
+                  {t('auth.password')}
                 </label>
                 <div className="relative">
                   <input
@@ -386,7 +388,7 @@ export function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     className="appearance-none block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                    placeholder="Enter your password"
+                    placeholder={t('auth.passwordPlaceholder')}
                   />
                   <button
                     type="button"
@@ -403,7 +405,7 @@ export function LoginPage() {
                   to={`/forgot-password${window.location.search}`}
                   className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                 >
-                  Forgot password?
+                  {t('auth.forgotPassword')}
                 </Link>
               </div>
 
@@ -415,12 +417,12 @@ export function LoginPage() {
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Signing in...
+                    {t('auth.signingIn')}
                   </>
                 ) : (
                   <>
                     <LogIn className="w-5 h-5" />
-                    Sign In
+                    {t('auth.signInButton')}
                   </>
                 )}
               </button>
@@ -433,7 +435,7 @@ export function LoginPage() {
               {/* Phone Number Field */}
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                  Phone Number
+                  {t('auth.phoneNumber')}
                 </label>
                 <input
                   type="tel"
@@ -442,7 +444,7 @@ export function LoginPage() {
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   disabled={otpSent}
                   className="w-full appearance-none block px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 disabled:bg-gray-100 transition-colors"
-                  placeholder="+1 (555) 123-4567"
+                  placeholder={t('auth.phonePlaceholder')}
                 />
               </div>
 
@@ -451,7 +453,7 @@ export function LoginPage() {
                 <form onSubmit={handlePhonePasswordLogin} className="space-y-5">
                   <div>
                     <label htmlFor="phonePassword" className="block text-sm font-medium text-gray-700 mb-1">
-                      Password
+                      {t('auth.password')}
                     </label>
                     <div className="relative">
                       <input
@@ -461,7 +463,7 @@ export function LoginPage() {
                         onChange={(e) => setPhonePassword(e.target.value)}
                         required
                         className="appearance-none block w-full px-3 py-2 pr-10 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 transition-colors"
-                        placeholder="Enter your password"
+                        placeholder={t('auth.passwordPlaceholder')}
                       />
                       <button
                         type="button"
@@ -480,13 +482,13 @@ export function LoginPage() {
                       className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
                     >
                       <MessageSquare className="w-4 h-4" />
-                      Use SMS code instead
+                      {t('phoneAuth.useSmsCode')}
                     </button>
                     <Link
                       to={`/forgot-password${window.location.search}`}
                       className="text-sm text-primary-600 hover:text-primary-700 font-medium"
                     >
-                      Forgot password?
+                      {t('auth.forgotPassword')}
                     </Link>
                   </div>
 
@@ -498,12 +500,12 @@ export function LoginPage() {
                     {isLoading ? (
                       <>
                         <Loader2 className="w-5 h-5 animate-spin" />
-                        Signing in...
+                        {t('auth.signingIn')}
                       </>
                     ) : (
                       <>
                         <LogIn className="w-5 h-5" />
-                        Sign In
+                        {t('auth.signInButton')}
                       </>
                     )}
                   </button>
@@ -524,12 +526,12 @@ export function LoginPage() {
                         {isLoading ? (
                           <>
                             <Loader2 className="w-5 h-5 animate-spin" />
-                            Sending...
+                            {t('phoneAuth.sending')}
                           </>
                         ) : (
                           <>
                             <MessageSquare className="w-5 h-5" />
-                            Send SMS Code
+                            {t('phoneAuth.sendSmsCode')}
                           </>
                         )}
                       </button>
@@ -539,14 +541,14 @@ export function LoginPage() {
                         onClick={switchToPassword}
                         className="w-full text-sm text-gray-500 hover:text-gray-700"
                       >
-                        Use password instead
+                        {t('phoneAuth.usePassword')}
                       </button>
                     </>
                   ) : (
                     <>
                       <div>
                         <label htmlFor="otp" className="block text-sm font-medium text-gray-700 mb-1">
-                          Verification Code
+                          {t('phoneAuth.verificationCode')}
                         </label>
                         <input
                           type="text"
@@ -569,7 +571,7 @@ export function LoginPage() {
                           }}
                           className="text-gray-500 hover:text-gray-700"
                         >
-                          Change number
+                          {t('phoneAuth.changeNumber')}
                         </button>
                         <button
                           type="button"
@@ -577,7 +579,7 @@ export function LoginPage() {
                           disabled={isLoading}
                           className="text-primary-600 hover:text-primary-700 font-medium"
                         >
-                          Resend code
+                          {t('phoneAuth.resendCode')}
                         </button>
                       </div>
 
@@ -589,12 +591,12 @@ export function LoginPage() {
                         {isLoading ? (
                           <>
                             <Loader2 className="w-5 h-5 animate-spin" />
-                            Verifying...
+                            {t('phoneAuth.verifying')}
                           </>
                         ) : (
                           <>
                             <LogIn className="w-5 h-5" />
-                            Verify & Sign In
+                            {t('phoneAuth.verifyAndSignIn')}
                           </>
                         )}
                       </button>
@@ -608,12 +610,12 @@ export function LoginPage() {
 
         {/* Register Link */}
         <p className="mt-6 text-center text-sm text-gray-600">
-          Don't have an account?{' '}
+          {t('auth.noAccount')}{' '}
           <Link
             to={`/register${window.location.search}`}
             className="text-primary-600 hover:text-primary-700 font-medium"
           >
-            Create one
+            {t('auth.createOne')}
           </Link>
         </p>
       </div>
