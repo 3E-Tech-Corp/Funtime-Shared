@@ -99,8 +99,15 @@ export function AdminDashboardPage() {
     if (!siteUrl) return;
     const token = localStorage.getItem('auth_token');
     if (token) {
+      // Use stored dev origin if on localhost (for local development)
+      let targetOrigin = siteUrl;
+      const devSiteOrigin = localStorage.getItem('dev_site_origin');
+      if (devSiteOrigin && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        targetOrigin = devSiteOrigin;
+      }
+
       // Build URL with token and site role info (same as non-SU users get)
-      const url = new URL(`${siteUrl}/auth/callback`);
+      const url = new URL(`${targetOrigin}/auth/callback`);
       url.searchParams.set('token', token);
 
       // Pass system role (e.g., SU)
