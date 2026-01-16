@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Users, Globe, CreditCard, LogOut, Search, ChevronRight, Edit2, X, Loader2, TrendingUp, Upload, Trash2, Bell, Settings, Image, FileText, Save, CheckCircle, ExternalLink, Radio, Mail, Phone, Send, AlertCircle, ShieldCheck, FileType } from 'lucide-react';
-import { adminApi, assetApi, settingsApi } from '../utils/api';
-import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod } from '../utils/api';
+import { adminApi, assetApi, settingsApi, getCurrentUser } from '../utils/api';
+import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod, UserSiteInfo } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
 import { NotificationsTab } from '../components/NotificationsTab';
 import { PushTestTab } from '../components/PushTestTab';
@@ -87,18 +87,49 @@ export function AdminDashboardPage() {
   const [termsSaved, setTermsSaved] = useState(false);
   const [privacySaved, setPrivacySaved] = useState(false);
 
+  // Current user's site roles (for passing to sites when visiting)
+  const [currentUserSites, setCurrentUserSites] = useState<UserSiteInfo[]>([]);
+
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     window.location.href = '/login';
   };
 
-  const handleVisitSite = (siteUrl: string | undefined) => {
+  const handleVisitSite = (siteUrl: string | undefined, siteKey?: string) => {
     if (!siteUrl) return;
     const token = localStorage.getItem('auth_token');
     if (token) {
-      window.location.href = `${siteUrl}/auth/callback?token=${encodeURIComponent(token)}`;
+      // Build URL with token and site role info (same as non-SU users get)
+      const url = new URL(`${siteUrl}/auth/callback`);
+      url.searchParams.set('token', token);
+
+      // Find user's role for this site and pass it along
+      if (siteKey) {
+        const userSite = currentUserSites.find(s => s.siteKey.toLowerCase() === siteKey.toLowerCase());
+        if (userSite?.role) {
+          url.searchParams.set('siteRole', userSite.role);
+          // Check if user is admin or moderator for this site
+          const isAdmin = userSite.role === 'admin' || userSite.role === 'moderator';
+          url.searchParams.set('isSiteAdmin', isAdmin.toString());
+        }
+      }
+
+      window.location.href = url.toString();
     } else {
       window.location.href = siteUrl;
+    }
+  };
+
+  // Load current user's site roles for visiting sites
+  const loadCurrentUserSites = async () => {
+    try {
+      const user = getCurrentUser();
+      if (user?.id) {
+        const userDetail = await adminApi.getUser(user.id);
+        setCurrentUserSites(userDetail.sites || []);
+      }
+    } catch (err) {
+      console.error('Failed to load current user sites:', err);
     }
   };
 
@@ -106,6 +137,7 @@ export function AdminDashboardPage() {
   useEffect(() => {
     loadStats();
     loadSites(); // Load sites for filter dropdowns
+    loadCurrentUserSites(); // Load current user's site roles for visit button
   }, []);
 
   // Load data when tab changes
@@ -631,7 +663,7 @@ export function AdminDashboardPage() {
                       )}
                       {site.url ? (
                         <button
-                          onClick={() => handleVisitSite(site.url)}
+                          onClick={() => handleVisitSite(site.url, site.key)}
                           className="inline-flex items-center gap-1 px-3 py-1 text-sm bg-primary-500 text-white rounded-lg hover:bg-primary-600"
                         >
                           <ExternalLink className="w-4 h-4" />
