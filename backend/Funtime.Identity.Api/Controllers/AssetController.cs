@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
+using Dapper;
 using System.Security.Claims;
 using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.Models;
@@ -15,15 +17,79 @@ public class AssetController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IFileStorageService _storageService;
     private readonly ILogger<AssetController> _logger;
+    private readonly string _connectionString;
+
+    // Cache for file types to avoid DB hits on every upload
+    private static List<AssetFileType>? _cachedFileTypes;
+    private static DateTime _cacheExpiry = DateTime.MinValue;
+    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
 
     public AssetController(
         ApplicationDbContext context,
         IFileStorageService storageService,
-        ILogger<AssetController> logger)
+        ILogger<AssetController> logger,
+        IConfiguration configuration)
     {
         _context = context;
         _storageService = storageService;
         _logger = logger;
+        _connectionString = configuration.GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("DefaultConnection not configured");
+    }
+
+    private SqlConnection CreateConnection() => new SqlConnection(_connectionString);
+
+    /// <summary>
+    /// Get enabled file types from database with caching
+    /// </summary>
+    private async Task<List<AssetFileType>> GetEnabledFileTypesAsync()
+    {
+        if (_cachedFileTypes != null && DateTime.UtcNow < _cacheExpiry)
+        {
+            return _cachedFileTypes;
+        }
+
+        try
+        {
+            using var conn = CreateConnection();
+            var fileTypes = (await conn.QueryAsync<AssetFileType>("exec dbo.csp_AssetFileTypes_GetEnabled")).ToList();
+            _cachedFileTypes = fileTypes;
+            _cacheExpiry = DateTime.UtcNow.Add(CacheDuration);
+            return fileTypes;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to load file types from DB, using fallback");
+            // Return fallback types if DB fails
+            return GetFallbackFileTypes();
+        }
+    }
+
+    /// <summary>
+    /// Fallback file types if database is unavailable
+    /// </summary>
+    private static List<AssetFileType> GetFallbackFileTypes()
+    {
+        return new List<AssetFileType>
+        {
+            // Images
+            new() { MimeType = "image/jpeg", Extensions = ".jpg,.jpeg", Category = "image", MaxSizeMB = 10 },
+            new() { MimeType = "image/png", Extensions = ".png", Category = "image", MaxSizeMB = 10 },
+            new() { MimeType = "image/gif", Extensions = ".gif", Category = "image", MaxSizeMB = 10 },
+            new() { MimeType = "image/webp", Extensions = ".webp", Category = "image", MaxSizeMB = 10 },
+            new() { MimeType = "image/svg+xml", Extensions = ".svg", Category = "image", MaxSizeMB = 10 },
+            // Videos
+            new() { MimeType = "video/mp4", Extensions = ".mp4", Category = "video", MaxSizeMB = 100 },
+            new() { MimeType = "video/webm", Extensions = ".webm", Category = "video", MaxSizeMB = 100 },
+            new() { MimeType = "video/quicktime", Extensions = ".mov", Category = "video", MaxSizeMB = 100 },
+            // Audio
+            new() { MimeType = "audio/mpeg", Extensions = ".mp3", Category = "audio", MaxSizeMB = 10 },
+            new() { MimeType = "audio/wav", Extensions = ".wav", Category = "audio", MaxSizeMB = 10 },
+            // Documents
+            new() { MimeType = "application/pdf", Extensions = ".pdf", Category = "document", MaxSizeMB = 10 },
+            new() { MimeType = "text/markdown", Extensions = ".md", Category = "document", MaxSizeMB = 10 },
+            new() { MimeType = "text/html", Extensions = ".html,.htm", Category = "document", MaxSizeMB = 10 }
+        };
     }
 
     /// <summary>
@@ -44,42 +110,34 @@ public class AssetController : ControllerBase
             return BadRequest(new { message = "No file uploaded." });
         }
 
-        // Validate file type first to determine size limits
-        var allowedImageTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
-        var allowedDocTypes = new[] { "application/pdf", "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-            "text/markdown", "text/x-markdown", "text/html" };
-        var allowedVideoTypes = new[] {
-            "video/mp4", "video/webm", "video/ogg", "video/quicktime", // .mov
-            "video/x-msvideo", "video/avi", // .avi
-            "video/x-matroska", // .mkv
-            "video/x-m4v", "video/m4v", // .m4v
-            "video/mpeg", // .mpeg
-            "video/x-ms-wmv", // .wmv
-            "video/3gpp", "video/3gpp2" // .3gp
-        };
-        var allowedAudioTypes = new[] { "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp3" };
-        var allAllowedTypes = allowedImageTypes.Concat(allowedDocTypes).Concat(allowedVideoTypes).Concat(allowedAudioTypes).ToArray();
-
+        // Get allowed file types from database
+        var fileTypes = await GetEnabledFileTypesAsync();
         var contentType = file.ContentType.ToLower();
-        if (!allAllowedTypes.Contains(contentType))
+
+        // Find matching file type
+        var matchingFileType = fileTypes.FirstOrDefault(ft => ft.MimeType.ToLower() == contentType);
+        if (matchingFileType == null)
         {
-            return BadRequest(new { message = $"Invalid file type: {file.ContentType}. Allowed types: images (jpeg, png, gif, webp, svg), videos (mp4, webm, ogg, mov, avi, mkv, m4v, mpeg, wmv, 3gp), audio (mp3, wav, ogg), documents (pdf, doc, docx, md, html)." });
+            // Build friendly error message with allowed types grouped by category
+            var allowedByCategory = fileTypes
+                .GroupBy(ft => ft.Category)
+                .ToDictionary(g => g.Key, g => g.Select(ft => ft.DisplayName ?? ft.MimeType).ToList());
+
+            var allowedTypesMessage = string.Join(", ",
+                allowedByCategory.Select(kvp => $"{kvp.Key}s ({string.Join(", ", kvp.Value)})"));
+
+            return BadRequest(new { message = $"Invalid file type: {file.ContentType}. Allowed types: {allowedTypesMessage}." });
         }
 
-        // Validate file size based on content type
-        // Videos: 100MB max, Others: 10MB max
-        var isVideo = contentType.StartsWith("video/");
-        var maxSize = isVideo ? 100 * 1024 * 1024 : 10 * 1024 * 1024;
-        var maxSizeDisplay = isVideo ? "100MB" : "10MB";
-
+        // Validate file size based on the file type's configured max size
+        var maxSize = matchingFileType.MaxSizeMB * 1024 * 1024;
         if (file.Length > maxSize)
         {
-            return BadRequest(new { message = $"File size must be less than {maxSizeDisplay}." });
+            return BadRequest(new { message = $"File size must be less than {matchingFileType.MaxSizeMB}MB for {matchingFileType.DisplayName ?? matchingFileType.MimeType}." });
         }
 
-        // Determine asset type from content type if not specified
-        var detectedAssetType = assetType ?? DetectAssetType(file.ContentType);
+        // Determine asset type from file type category if not specified
+        var detectedAssetType = assetType ?? matchingFileType.Category;
 
         var userId = GetCurrentUserId();
 
@@ -188,8 +246,12 @@ public class AssetController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Detect asset type from content type (used for external links)
+    /// </summary>
     private static string DetectAssetType(string contentType)
     {
+        contentType = contentType.ToLower();
         if (contentType.StartsWith("image/")) return AssetTypes.Image;
         if (contentType.StartsWith("video/")) return AssetTypes.Video;
         if (contentType.StartsWith("audio/")) return AssetTypes.Audio;

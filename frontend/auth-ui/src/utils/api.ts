@@ -702,6 +702,24 @@ export interface AdminPaymentMethod {
 // Asset types
 export type AssetType = 'image' | 'video' | 'document' | 'audio' | 'link';
 
+export interface AssetFileType {
+  id: number;
+  mimeType: string;
+  extensions: string;
+  category: string;
+  maxSizeMB: number;
+  isEnabled: boolean;
+  displayName?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface AssetFileTypesResponse {
+  fileTypes: AssetFileType[];
+  acceptString: string;
+  byCategory: Record<string, AssetFileType[]>;
+}
+
 export interface AssetUploadResponse {
   assetId: number;
   assetType: AssetType;
@@ -740,6 +758,11 @@ export interface RegisterLinkRequest {
 
 // Asset API methods
 export const assetApi = {
+  // Get enabled file types for upload modal
+  async getEnabledFileTypes(): Promise<AssetFileTypesResponse> {
+    return request('/admin/asset-file-types/enabled', {});
+  },
+
   // Upload a file and get asset ID
   async upload(
     file: File,
@@ -818,6 +841,71 @@ export const assetApi = {
       const error = await response.json().catch(() => ({ message: 'Delete failed' }));
       throw new Error(error.message || 'Delete failed');
     }
+  },
+};
+
+// Asset File Types Admin API - for managing allowed file types
+export const fileTypesApi = {
+  // Get all file types (admin only)
+  async getAll(): Promise<AssetFileType[]> {
+    return request('/admin/asset-file-types', {
+      headers: getAuthHeaders(),
+    });
+  },
+
+  // Get file type by ID
+  async getById(id: number): Promise<AssetFileType> {
+    return request(`/admin/asset-file-types/${id}`, {
+      headers: getAuthHeaders(),
+    });
+  },
+
+  // Create a new file type
+  async create(fileType: {
+    mimeType: string;
+    extensions: string;
+    category: string;
+    maxSizeMB?: number;
+    isEnabled?: boolean;
+    displayName?: string;
+  }): Promise<AssetFileType> {
+    return request('/admin/asset-file-types', {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fileType),
+    });
+  },
+
+  // Update a file type
+  async update(id: number, fileType: {
+    mimeType: string;
+    extensions: string;
+    category: string;
+    maxSizeMB: number;
+    isEnabled: boolean;
+    displayName?: string;
+  }): Promise<AssetFileType> {
+    return request(`/admin/asset-file-types/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(fileType),
+    });
+  },
+
+  // Delete a file type
+  async delete(id: number): Promise<void> {
+    return request(`/admin/asset-file-types/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+  },
+
+  // Toggle enabled status
+  async toggle(id: number): Promise<{ isEnabled: boolean }> {
+    return request(`/admin/asset-file-types/${id}/toggle`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
   },
 };
 
