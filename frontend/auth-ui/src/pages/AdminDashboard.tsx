@@ -128,11 +128,13 @@ export function AdminDashboardPage() {
     try {
       const user = getCurrentUser();
       console.log('Current user from token:', user);
-      if (user?.id) {
+      if (user?.id && !isNaN(user.id) && user.id > 0) {
         const userDetail = await adminApi.getUser(user.id);
         console.log('User detail from API:', userDetail);
         console.log('User sites:', userDetail.sites);
         setCurrentUserSites(userDetail.sites || []);
+      } else {
+        console.warn('Invalid user ID from token:', user?.id);
       }
     } catch (err) {
       console.error('Failed to load current user sites:', err);

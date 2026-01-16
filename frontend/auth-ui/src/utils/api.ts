@@ -302,7 +302,9 @@ function getAuthHeaders(): HeadersInit {
 
 // JWT token payload structure (using .NET claim names)
 export interface TokenPayload {
-  nameid: string; // User ID (ClaimTypes.NameIdentifier)
+  nameid?: string; // User ID short name
+  // .NET ClaimTypes.NameIdentifier uses the full URL
+  'http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'?: string;
   email?: string; // ClaimTypes.Email
   // ClaimTypes.Role maps to this long URL in the JWT
   'http://schemas.microsoft.com/ws/2008/06/identity/claims/role'?: string;
@@ -347,11 +349,12 @@ export function getCurrentUser(): { id: number; email?: string; role?: string; s
     return null;
   }
 
-  // .NET ClaimTypes.Role uses the full URL as the claim name
+  // .NET ClaimTypes use full URLs as claim names
+  const userId = payload['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier'] || payload.nameid;
   const role = payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] || payload.role;
 
   return {
-    id: parseInt(payload.nameid),
+    id: parseInt(userId || '0'),
     email: payload.email,
     role,
     sites: payload.sites ? JSON.parse(payload.sites) : [],
