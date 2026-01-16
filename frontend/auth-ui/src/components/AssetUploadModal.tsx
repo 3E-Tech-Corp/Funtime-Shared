@@ -67,7 +67,7 @@ export function AssetUploadModal({
   onUploadComplete,
   category,
   siteKey,
-  acceptedTypes = 'image/*,video/*,audio/*,.pdf,.doc,.docx',
+  acceptedTypes = 'image/*,video/*,audio/*,.pdf,.doc,.docx,.md,.html,.htm',
   maxSizeMB = 10,
   title = 'Upload Asset',
   allowExternalLinks = true,

@@ -47,7 +47,8 @@ public class AssetController : ControllerBase
         // Validate file type first to determine size limits
         var allowedImageTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "image/svg+xml" };
         var allowedDocTypes = new[] { "application/pdf", "application/msword",
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document" };
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "text/markdown", "text/x-markdown", "text/html" };
         var allowedVideoTypes = new[] {
             "video/mp4", "video/webm", "video/ogg", "video/quicktime", // .mov
             "video/x-msvideo", "video/avi", // .avi
@@ -63,7 +64,7 @@ public class AssetController : ControllerBase
         var contentType = file.ContentType.ToLower();
         if (!allAllowedTypes.Contains(contentType))
         {
-            return BadRequest(new { message = $"Invalid file type: {file.ContentType}. Allowed types: images (jpeg, png, gif, webp, svg), videos (mp4, webm, ogg, mov, avi, mkv, m4v, mpeg, wmv, 3gp), audio (mp3, wav, ogg), documents (pdf, doc, docx)." });
+            return BadRequest(new { message = $"Invalid file type: {file.ContentType}. Allowed types: images (jpeg, png, gif, webp, svg), videos (mp4, webm, ogg, mov, avi, mkv, m4v, mpeg, wmv, 3gp), audio (mp3, wav, ogg), documents (pdf, doc, docx, md, html)." });
         }
 
         // Validate file size based on content type
@@ -192,7 +193,8 @@ public class AssetController : ControllerBase
         if (contentType.StartsWith("image/")) return AssetTypes.Image;
         if (contentType.StartsWith("video/")) return AssetTypes.Video;
         if (contentType.StartsWith("audio/")) return AssetTypes.Audio;
-        if (contentType.Contains("pdf") || contentType.Contains("document") || contentType.Contains("word"))
+        if (contentType.Contains("pdf") || contentType.Contains("document") || contentType.Contains("word")
+            || contentType.Contains("markdown") || contentType.Contains("html"))
             return AssetTypes.Document;
         return AssetTypes.Image;
     }
