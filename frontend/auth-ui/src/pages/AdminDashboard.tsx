@@ -99,11 +99,19 @@ export function AdminDashboardPage() {
     if (!siteUrl) return;
     const token = localStorage.getItem('auth_token');
     if (token) {
-      // Use stored dev origin if on localhost (for local development)
+      // Use stored dev origin if it's a localhost URL (for local development)
+      // This handles the case where shared auth is on production but site is on localhost
       let targetOrigin = siteUrl;
       const devSiteOrigin = localStorage.getItem('dev_site_origin');
-      if (devSiteOrigin && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        targetOrigin = devSiteOrigin;
+      if (devSiteOrigin) {
+        try {
+          const devUrl = new URL(devSiteOrigin);
+          if (devUrl.hostname === 'localhost' || devUrl.hostname === '127.0.0.1') {
+            targetOrigin = devSiteOrigin;
+          }
+        } catch {
+          // Invalid URL, use production
+        }
       }
 
       // Build URL with token and site role info (same as non-SU users get)
