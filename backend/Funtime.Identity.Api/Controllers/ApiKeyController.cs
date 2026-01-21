@@ -48,6 +48,7 @@ public class ApiKeyController : ControllerBase
                 new() { Name = ApiScopes.UsersWrite, Description = "Update user information", Category = "Users" },
                 new() { Name = ApiScopes.AssetsRead, Description = "Read/download assets", Category = "Assets" },
                 new() { Name = ApiScopes.AssetsWrite, Description = "Upload/delete assets", Category = "Assets" },
+                new() { Name = ApiScopes.SitesRead, Description = "Read site information", Category = "Sites" },
                 new() { Name = ApiScopes.PushSend, Description = "Send push notifications", Category = "Notifications" },
                 new() { Name = ApiScopes.Admin, Description = "Full administrative access", Category = "Admin" }
             }

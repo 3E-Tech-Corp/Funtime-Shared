@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Data.SqlClient;
 using Dapper;
 using System.Security.Claims;
+using Funtime.Identity.Api.Auth;
 using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.Models;
 using Funtime.Identity.Api.Services;
@@ -93,10 +94,10 @@ public class AssetController : ControllerBase
     }
 
     /// <summary>
-    /// Upload an asset and get back the asset ID
+    /// Upload an asset and get back the asset ID (supports API key with assets:write scope)
     /// </summary>
     [HttpPost("upload")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.AssetsWrite, AllowJwt = true)]
     [RequestSizeLimit(150 * 1024 * 1024)] // 150MB limit for video uploads
     public async Task<ActionResult<AssetUploadResponse>> Upload(
         IFormFile file,
@@ -198,10 +199,10 @@ public class AssetController : ControllerBase
     }
 
     /// <summary>
-    /// Register an external link as an asset (YouTube, Vimeo, etc.)
+    /// Register an external link as an asset (YouTube, Vimeo, etc.) - supports API key with assets:write scope
     /// </summary>
     [HttpPost("link")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.AssetsWrite, AllowJwt = true)]
     public async Task<ActionResult<AssetUploadResponse>> RegisterLink([FromBody] RegisterLinkRequest request)
     {
         if (string.IsNullOrWhiteSpace(request.Url))
@@ -316,10 +317,10 @@ public class AssetController : ControllerBase
     }
 
     /// <summary>
-    /// Get asset file by ID (redirects to external URL for linked assets)
+    /// Get asset file by ID (redirects to external URL for linked assets) - supports API key with assets:read scope
     /// </summary>
     [HttpGet("{id:int}")]
-    [AllowAnonymous]
+    [ApiKeyAuthorize(ApiScopes.AssetsRead, AllowJwt = true)]
     public async Task<IActionResult> GetAsset(int id)
     {
         var asset = await _context.Assets.FindAsync(id);
@@ -361,10 +362,10 @@ public class AssetController : ControllerBase
     }
 
     /// <summary>
-    /// Get asset metadata by ID
+    /// Get asset metadata by ID (supports API key with assets:read scope)
     /// </summary>
     [HttpGet("{id:int}/info")]
-    [AllowAnonymous]
+    [ApiKeyAuthorize(ApiScopes.AssetsRead, AllowJwt = true)]
     public async Task<ActionResult<AssetInfoResponse>> GetAssetInfo(int id)
     {
         var asset = await _context.Assets.FindAsync(id);
@@ -400,10 +401,10 @@ public class AssetController : ControllerBase
     }
 
     /// <summary>
-    /// Delete an asset (owner or admin only)
+    /// Delete an asset (owner or admin only) - supports API key with assets:write scope
     /// </summary>
     [HttpDelete("{id:int}")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.AssetsWrite, AllowJwt = true)]
     public async Task<ActionResult> DeleteAsset(int id)
     {
         var asset = await _context.Assets.FindAsync(id);

@@ -6,12 +6,19 @@ using Funtime.Identity.Api.Models;
 namespace Funtime.Identity.Api.Auth;
 
 /// <summary>
-/// Attribute to require API key authentication with optional scope requirement
+/// Attribute to require API key authentication with optional scope requirement.
+/// Supports dual auth mode where either API key OR JWT is accepted.
 /// </summary>
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = true)]
 public class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
 {
     private readonly string? _requiredScope;
+
+    /// <summary>
+    /// When true, allows JWT authentication as an alternative to API key.
+    /// If both are provided, API key takes precedence.
+    /// </summary>
+    public bool AllowJwt { get; set; } = false;
 
     /// <summary>
     /// Require API key authentication
@@ -37,9 +44,19 @@ public class ApiKeyAuthorizeAttribute : Attribute, IAsyncAuthorizationFilter
         // Get API key from header
         var apiKey = context.HttpContext.Request.Headers["X-Api-Key"].FirstOrDefault();
 
+        // If no API key provided, check if JWT fallback is allowed
         if (string.IsNullOrEmpty(apiKey))
         {
-            context.Result = new UnauthorizedObjectResult(new { message = "API key is required. Include X-Api-Key header." });
+            if (AllowJwt && context.HttpContext.User.Identity?.IsAuthenticated == true)
+            {
+                // JWT is valid, allow the request
+                return;
+            }
+
+            var message = AllowJwt
+                ? "Authentication required. Provide X-Api-Key header or valid JWT Bearer token."
+                : "API key is required. Include X-Api-Key header.";
+            context.Result = new UnauthorizedObjectResult(new { message });
             return;
         }
 

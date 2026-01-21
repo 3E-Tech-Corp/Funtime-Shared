@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Funtime.Identity.Api.Auth;
+using Funtime.Identity.Api.Models;
 using Funtime.Identity.Api.Services;
 using System.Security.Claims;
 
@@ -8,6 +10,7 @@ namespace Funtime.Identity.Api.Controllers;
 /// <summary>
 /// API endpoints for sending real-time push notifications via SignalR.
 /// External sites can call these endpoints to send notifications to users.
+/// Supports API key authentication with push:send scope.
 /// </summary>
 [ApiController]
 [Route("api/push")]
@@ -15,30 +18,22 @@ public class PushNotificationController : ControllerBase
 {
     private readonly INotificationService _notificationService;
     private readonly ILogger<PushNotificationController> _logger;
-    private readonly IConfiguration _configuration;
 
     public PushNotificationController(
         INotificationService notificationService,
-        ILogger<PushNotificationController> logger,
-        IConfiguration configuration)
+        ILogger<PushNotificationController> logger)
     {
         _notificationService = notificationService;
         _logger = logger;
-        _configuration = configuration;
     }
 
     /// <summary>
-    /// Send a notification to a specific user by their user ID
+    /// Send a notification to a specific user by their user ID (supports API key with push:send scope)
     /// </summary>
     [HttpPost("user/{userId}")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.PushSend, AllowJwt = true)]
     public async Task<ActionResult> SendToUser(int userId, [FromBody] PushNotificationRequest request)
     {
-        if (!IsAuthorizedToSend())
-        {
-            return Forbid();
-        }
-
         await _notificationService.SendToUserAsync(userId, request.Type, request.Payload);
 
         _logger.LogInformation(
@@ -53,17 +48,12 @@ public class PushNotificationController : ControllerBase
     }
 
     /// <summary>
-    /// Send a notification to all users on a specific site
+    /// Send a notification to all users on a specific site (supports API key with push:send scope)
     /// </summary>
     [HttpPost("site/{siteKey}")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.PushSend, AllowJwt = true)]
     public async Task<ActionResult> SendToSite(string siteKey, [FromBody] PushNotificationRequest request)
     {
-        if (!IsAuthorizedToSend(siteKey))
-        {
-            return Forbid();
-        }
-
         await _notificationService.SendToSiteAsync(siteKey, request.Type, request.Payload);
 
         _logger.LogInformation(
@@ -74,10 +64,10 @@ public class PushNotificationController : ControllerBase
     }
 
     /// <summary>
-    /// Send a notification to all connected users (admin only)
+    /// Send a notification to all connected users (supports API key with push:send scope)
     /// </summary>
     [HttpPost("broadcast")]
-    [Authorize(Roles = "SU")]
+    [ApiKeyAuthorize(ApiScopes.PushSend, AllowJwt = true)]
     public async Task<ActionResult> Broadcast([FromBody] PushNotificationRequest request)
     {
         await _notificationService.SendToAllAsync(request.Type, request.Payload);
@@ -90,17 +80,12 @@ public class PushNotificationController : ControllerBase
     }
 
     /// <summary>
-    /// Check if a user is currently connected to receive notifications
+    /// Check if a user is currently connected to receive notifications (supports API key with push:send scope)
     /// </summary>
     [HttpGet("user/{userId}/status")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.PushSend, AllowJwt = true)]
     public ActionResult<UserConnectionStatus> GetUserStatus(int userId)
     {
-        if (!IsAuthorizedToSend())
-        {
-            return Forbid();
-        }
-
         return Ok(new UserConnectionStatus
         {
             UserId = userId,
@@ -109,17 +94,12 @@ public class PushNotificationController : ControllerBase
     }
 
     /// <summary>
-    /// Send notifications to multiple users at once
+    /// Send notifications to multiple users at once (supports API key with push:send scope)
     /// </summary>
     [HttpPost("users/batch")]
-    [Authorize]
+    [ApiKeyAuthorize(ApiScopes.PushSend, AllowJwt = true)]
     public async Task<ActionResult> SendToUsers([FromBody] BatchNotificationRequest request)
     {
-        if (!IsAuthorizedToSend())
-        {
-            return Forbid();
-        }
-
         var results = new List<BatchNotificationResult>();
 
         foreach (var userId in request.UserIds)
@@ -141,55 +121,6 @@ public class PushNotificationController : ControllerBase
             message = $"Notification sent to {request.UserIds.Count} users",
             results
         });
-    }
-
-    /// <summary>
-    /// Check if the current user is authorized to send notifications.
-    /// Allows: SU role, admin role, or users with valid API key
-    /// </summary>
-    private bool IsAuthorizedToSend(string? siteKey = null)
-    {
-        // Super users can always send
-        if (User.IsInRole("SU"))
-        {
-            return true;
-        }
-
-        // Check for API key header (for server-to-server calls)
-        var apiKey = Request.Headers["X-Api-Key"].FirstOrDefault();
-        if (!string.IsNullOrEmpty(apiKey))
-        {
-            var validApiKey = _configuration["PushNotifications:ApiKey"];
-            if (!string.IsNullOrEmpty(validApiKey) && apiKey == validApiKey)
-            {
-                return true;
-            }
-        }
-
-        // Site admins can send to their own site
-        if (!string.IsNullOrEmpty(siteKey))
-        {
-            var userSites = User.FindFirst("sites")?.Value;
-            if (!string.IsNullOrEmpty(userSites))
-            {
-                try
-                {
-                    var sites = System.Text.Json.JsonSerializer.Deserialize<List<string>>(userSites);
-                    if (sites?.Contains(siteKey) == true)
-                    {
-                        return true;
-                    }
-                }
-                catch
-                {
-                    // Ignore JSON parsing errors
-                }
-            }
-        }
-
-        // For now, allow any authenticated user to send notifications
-        // You can make this more restrictive based on your requirements
-        return User.Identity?.IsAuthenticated == true;
     }
 }
 

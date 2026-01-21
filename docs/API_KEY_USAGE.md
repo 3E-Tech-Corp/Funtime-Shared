@@ -6,10 +6,12 @@ This document describes how to authenticate API requests using API keys for trus
 
 API keys provide a simple way for trusted applications to authenticate with the Funtime Identity API without user credentials. Each key is scoped to specific permissions and can be restricted by IP address.
 
+Most endpoints support **dual authentication** - you can use either an API key OR a JWT token. API key takes precedence if both are provided.
+
 ## Getting an API Key
 
 Contact your system administrator to obtain an API key. You will receive:
-- **API Key**: A 64-character string (e.g., `fk_a1b2c3d4e5f6...`)
+- **API Key**: A 64-character string (e.g., `pk_comm_a1b2c3d4e5f6...`)
 - **Allowed Scopes**: The permissions granted to your key
 
 Keep your API key secure. Do not expose it in client-side code or public repositories.
@@ -27,7 +29,7 @@ X-Api-Key: your_api_key_here
 **cURL:**
 ```bash
 curl -X GET "https://api.example.com/endpoint" \
-  -H "X-Api-Key: fk_a1b2c3d4e5f6789..."
+  -H "X-Api-Key: pk_comm_a1b2c3d4e5f6789..."
 ```
 
 **JavaScript (fetch):**
@@ -35,7 +37,7 @@ curl -X GET "https://api.example.com/endpoint" \
 const response = await fetch('https://api.example.com/endpoint', {
   method: 'GET',
   headers: {
-    'X-Api-Key': 'fk_a1b2c3d4e5f6789...',
+    'X-Api-Key': 'pk_comm_a1b2c3d4e5f6789...',
     'Content-Type': 'application/json'
   }
 });
@@ -48,7 +50,7 @@ const axios = require('axios');
 const api = axios.create({
   baseURL: 'https://api.example.com',
   headers: {
-    'X-Api-Key': 'fk_a1b2c3d4e5f6789...'
+    'X-Api-Key': 'pk_comm_a1b2c3d4e5f6789...'
   }
 });
 
@@ -58,7 +60,7 @@ const response = await api.get('/endpoint');
 **C# (HttpClient):**
 ```csharp
 using var client = new HttpClient();
-client.DefaultRequestHeaders.Add("X-Api-Key", "fk_a1b2c3d4e5f6789...");
+client.DefaultRequestHeaders.Add("X-Api-Key", "pk_comm_a1b2c3d4e5f6789...");
 
 var response = await client.GetAsync("https://api.example.com/endpoint");
 ```
@@ -68,7 +70,7 @@ var response = await client.GetAsync("https://api.example.com/endpoint");
 import requests
 
 headers = {
-    'X-Api-Key': 'fk_a1b2c3d4e5f6789...'
+    'X-Api-Key': 'pk_comm_a1b2c3d4e5f6789...'
 }
 
 response = requests.get('https://api.example.com/endpoint', headers=headers)
@@ -80,44 +82,89 @@ Your API key may be granted one or more of the following scopes:
 
 | Scope | Description |
 |-------|-------------|
-| `auth:validate` | Validate authentication tokens |
-| `auth:sync` | Synchronize authentication state between services |
-| `users:read` | Read user information |
-| `users:write` | Create and update user information |
+| `auth:validate` | Validate JWT tokens |
+| `auth:sync` | Synchronize authentication state, force-auth, external login |
+| `users:read` | Read user information and profiles |
+| `users:write` | Update user information (email, password, roles) |
 | `assets:read` | Read/download assets |
-| `assets:write` | Upload and manage assets |
+| `assets:write` | Upload, register links, and delete assets |
+| `sites:read` | Read site membership information |
 | `push:send` | Send push notifications |
-| `admin` | Full administrative access |
+| `admin` | Full administrative access (grants all scopes) |
+
+## Protected Endpoints by Scope
+
+### `auth:validate`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/validate` | Validate a JWT token |
+| POST | `/auth/validate-token` | Validate token (cross-site) |
+
+### `auth:sync`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/auth/force-auth` | Force authenticate as a user by ID |
+| POST | `/auth/external-login` | Login via external provider (Google, Apple, etc.) |
+
+### `users:read`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/profile` | Get current user's profile |
+| GET | `/profile/{userId}` | Get profile by user ID |
+| GET | `/profile/full` | Get full user info including sites |
+
+### `users:write`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| PUT | `/profile` | Update current user's profile |
+| PUT | `/admin/users/{id}` | Update user (email, password, etc.) |
+| POST | `/sites/role` | Update user's site role |
+
+### `assets:read`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/asset/{id}` | Get asset file by ID |
+| GET | `/asset/{id}/info` | Get asset metadata |
+
+### `assets:write`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/asset/upload` | Upload an asset file |
+| POST | `/asset/link` | Register an external link (YouTube, etc.) |
+| DELETE | `/asset/{id}` | Delete an asset |
+
+### `sites:read`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/sites` | Get user's joined sites |
+| POST | `/sites/join` | Join a site |
+| POST | `/sites/leave` | Leave a site |
+| GET | `/sites/check/{siteKey}` | Check site membership |
+
+### `push:send`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/push/user/{userId}` | Send notification to a user |
+| POST | `/api/push/site/{siteKey}` | Send notification to site users |
+| POST | `/api/push/broadcast` | Broadcast to all users |
+| GET | `/api/push/user/{userId}/status` | Check if user is connected |
+| POST | `/api/push/users/batch` | Send to multiple users |
 
 ## Error Responses
 
 ### 401 Unauthorized
 
-**Missing API Key:**
+**Missing API Key (when JWT also not provided):**
 ```json
 {
-  "error": "API key is required"
+  "message": "Authentication required. Provide X-Api-Key header or valid JWT Bearer token."
 }
 ```
 
 **Invalid API Key:**
 ```json
 {
-  "error": "Invalid API key"
-}
-```
-
-**Inactive API Key:**
-```json
-{
-  "error": "API key is inactive"
-}
-```
-
-**Expired API Key:**
-```json
-{
-  "error": "API key has expired"
+  "message": "Invalid or expired API key."
 }
 ```
 
@@ -126,14 +173,14 @@ Your API key may be granted one or more of the following scopes:
 **Insufficient Scope:**
 ```json
 {
-  "error": "API key does not have required scope: assets:write"
+  "message": "This API key does not have the required scope: assets:write"
 }
 ```
 
 **IP Not Allowed:**
 ```json
 {
-  "error": "IP address not allowed for this API key"
+  "message": "Access denied from this IP address."
 }
 ```
 
@@ -151,7 +198,7 @@ Store the key in an environment variable:
 
 ```bash
 # .env file (do not commit to git)
-FUNTIME_API_KEY=fk_a1b2c3d4e5f6789...
+FUNTIME_API_KEY=pk_comm_a1b2c3d4e5f6789...
 ```
 
 Then use it in your code:

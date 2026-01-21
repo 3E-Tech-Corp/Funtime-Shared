@@ -155,6 +155,9 @@ public static class ApiScopes
     public const string AssetsRead = "assets:read";
     public const string AssetsWrite = "assets:write";
 
+    // Site scopes
+    public const string SitesRead = "sites:read";
+
     // Push notification scopes
     public const string PushSend = "push:send";
 
@@ -169,6 +172,7 @@ public static class ApiScopes
         AuthValidate, AuthSync,
         UsersRead, UsersWrite,
         AssetsRead, AssetsWrite,
+        SitesRead,
         PushSend,
         Admin
     };
