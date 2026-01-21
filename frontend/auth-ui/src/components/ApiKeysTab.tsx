@@ -30,6 +30,11 @@ export function ApiKeysTab() {
   // Copied state for copy button feedback
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
+  // Quick create state
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [quickCreateName, setQuickCreateName] = useState('');
+  const [quickCreating, setQuickCreating] = useState(false);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -68,6 +73,35 @@ export function ApiKeysTab() {
       setError(err instanceof Error ? err.message : 'Failed to create API key');
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleQuickCreate = async () => {
+    if (!quickCreateName.trim()) {
+      setError('Partner name is required');
+      return;
+    }
+
+    try {
+      setQuickCreating(true);
+      setError(null);
+      // Auto-generate partner key from name
+      const partnerKey = quickCreateName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const created = await apiKeysApi.create({
+        partnerKey,
+        partnerName: quickCreateName.trim(),
+        scopes: ['auth:validate', 'users:read'], // Default useful scopes
+        rateLimitPerMinute: 60,
+        description: `API key for ${quickCreateName.trim()}`,
+      });
+      setNewKey(created);
+      setApiKeys(prev => [created, ...prev]);
+      setShowQuickCreate(false);
+      setQuickCreateName('');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create API key');
+    } finally {
+      setQuickCreating(false);
     }
   };
 
@@ -203,13 +237,52 @@ export function ApiKeysTab() {
           <h2 className="text-xl font-semibold text-gray-900">API Keys</h2>
           <p className="text-sm text-gray-500">Manage API keys for partner applications</p>
         </div>
-        <button
-          onClick={openCreateModal}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
-        >
-          <Plus className="w-4 h-4" />
-          Create API Key
-        </button>
+        <div className="flex items-center gap-2">
+          {showQuickCreate ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={quickCreateName}
+                onChange={e => setQuickCreateName(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleQuickCreate()}
+                placeholder="Partner name..."
+                className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-48"
+                autoFocus
+              />
+              <button
+                onClick={handleQuickCreate}
+                disabled={quickCreating || !quickCreateName.trim()}
+                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50"
+              >
+                {quickCreating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Key className="w-4 h-4" />}
+                Generate
+              </button>
+              <button
+                onClick={() => { setShowQuickCreate(false); setQuickCreateName(''); }}
+                className="p-2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <button
+                onClick={() => setShowQuickCreate(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+              >
+                <Key className="w-4 h-4" />
+                Quick Create
+              </button>
+              <button
+                onClick={openCreateModal}
+                className="flex items-center gap-2 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
+              >
+                <Plus className="w-4 h-4" />
+                Advanced
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Error */}
