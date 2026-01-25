@@ -57,7 +57,8 @@ public class AddressController : ControllerBase
     }
 
     /// <summary>
-    /// Create a new address - returns ID and GPS for local caching
+    /// Create a new address or return existing if duplicate found.
+    /// Duplicate detection: same cityId + line1 + postalCode (case-insensitive)
     /// </summary>
     [HttpPost]
     [ApiKeyAuthorize(ApiScopes.AddressesWrite, AllowJwt = true)]
@@ -78,7 +79,38 @@ public class AddressController : ControllerBase
         if (city == null)
             return BadRequest(new { message = "City not found." });
 
-        // Create address
+        // Check for existing duplicate address (same city, line1, postal code)
+        var normalizedLine1 = request.Line1.Trim();
+        var normalizedPostal = request.PostalCode?.Trim();
+
+        var existing = await conn.QuerySingleOrDefaultAsync<ExistingAddressInfo>(
+            @"SELECT Id, Latitude, Longitude, IsVerified
+              FROM Addresses
+              WHERE CityId = @CityId
+                AND LOWER(LTRIM(RTRIM(Line1))) = LOWER(@Line1)
+                AND ((@PostalCode IS NULL AND PostalCode IS NULL) OR LOWER(LTRIM(RTRIM(PostalCode))) = LOWER(@PostalCode))",
+            new { request.CityId, Line1 = normalizedLine1, PostalCode = normalizedPostal });
+
+        if (existing != null)
+        {
+            // Return existing address - use its GPS or fallback to city
+            var existingLat = existing.Latitude ?? city.Latitude;
+            var existingLng = existing.Longitude ?? city.Longitude;
+
+            _logger.LogDebug("Returning existing address {AddressId} (duplicate detected)", existing.Id);
+
+            return Ok(new AddressCreatedResponse
+            {
+                Id = existing.Id,
+                Latitude = existingLat,
+                Longitude = existingLng,
+                IsVerified = existing.IsVerified,
+                GpsSource = existing.Latitude.HasValue ? "address" : (city.Latitude.HasValue ? "city" : "none"),
+                IsExisting = true
+            });
+        }
+
+        // Create new address
         var newId = await conn.QuerySingleAsync<int>(
             @"INSERT INTO Addresses (CityId, Line1, Line2, PostalCode, Latitude, Longitude, IsVerified, CreatedByUserId)
               OUTPUT INSERTED.Id
@@ -86,9 +118,9 @@ public class AddressController : ControllerBase
             new
             {
                 request.CityId,
-                request.Line1,
-                request.Line2,
-                request.PostalCode,
+                Line1 = normalizedLine1,
+                Line2 = request.Line2?.Trim(),
+                PostalCode = normalizedPostal,
                 request.Latitude,
                 request.Longitude,
                 IsVerified = request.Latitude.HasValue && request.Longitude.HasValue,
@@ -107,7 +139,8 @@ public class AddressController : ControllerBase
             Latitude = responseLatitude,
             Longitude = responseLongitude,
             IsVerified = request.Latitude.HasValue && request.Longitude.HasValue,
-            GpsSource = request.Latitude.HasValue ? "address" : (city.Latitude.HasValue ? "city" : "none")
+            GpsSource = request.Latitude.HasValue ? "address" : (city.Latitude.HasValue ? "city" : "none"),
+            IsExisting = false
         });
     }
 
@@ -373,6 +406,10 @@ public class AddressCreatedResponse
     public decimal? Longitude { get; set; }
     public bool IsVerified { get; set; }
     public string GpsSource { get; set; } = "none";  // "address", "city", or "none"
+    /// <summary>
+    /// True if an existing duplicate address was found and returned instead of creating new
+    /// </summary>
+    public bool IsExisting { get; set; } = false;
 }
 
 public class AddressLookupResponse
@@ -401,6 +438,14 @@ internal class CityGpsInfo
     public int Id { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
+}
+
+internal class ExistingAddressInfo
+{
+    public int Id { get; set; }
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public bool IsVerified { get; set; }
 }
 
 internal class AddressGpsInfo

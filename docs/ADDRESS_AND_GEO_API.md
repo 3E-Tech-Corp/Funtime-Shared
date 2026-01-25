@@ -142,7 +142,9 @@ PUT /geo/cities/{id}/gps
 
 ### Create Address
 
-Creates a new address and returns ID + GPS for local caching.
+Creates a new address or returns existing if duplicate found.
+
+**Duplicate detection:** Same `cityId` + `line1` + `postalCode` (case-insensitive, trimmed)
 
 ```bash
 POST /addresses
@@ -156,14 +158,27 @@ POST /addresses
 }
 ```
 
-**Response:**
+**Response (new address):**
 ```json
 {
   "id": 456,
   "latitude": 34.052235,
   "longitude": -118.243683,
   "isVerified": true,
-  "gpsSource": "address"
+  "gpsSource": "address",
+  "isExisting": false
+}
+```
+
+**Response (duplicate found):**
+```json
+{
+  "id": 123,
+  "latitude": 34.052235,
+  "longitude": -118.243683,
+  "isVerified": true,
+  "gpsSource": "address",
+  "isExisting": true
 }
 ```
 
