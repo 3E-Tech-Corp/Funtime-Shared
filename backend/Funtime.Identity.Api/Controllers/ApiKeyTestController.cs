@@ -127,6 +127,10 @@ public class ApiKeyTestController : ControllerBase
         ApiScopes.AssetsWrite => "Upload, link, and delete assets",
         ApiScopes.SitesRead => "Read site membership information",
         ApiScopes.PushSend => "Send push notifications via SignalR",
+        ApiScopes.GeoRead => "Read countries, provinces/states, and cities",
+        ApiScopes.GeoWrite => "Create and update cities with GPS",
+        ApiScopes.AddressesRead => "Read addresses and GPS coordinates",
+        ApiScopes.AddressesWrite => "Create and update addresses",
         ApiScopes.Admin => "Full administrative access (includes all scopes)",
         _ => "Unknown scope"
     };

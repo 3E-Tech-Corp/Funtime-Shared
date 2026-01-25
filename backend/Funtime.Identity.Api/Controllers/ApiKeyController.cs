@@ -50,6 +50,10 @@ public class ApiKeyController : ControllerBase
                 new() { Name = ApiScopes.AssetsWrite, Description = "Upload/delete assets", Category = "Assets" },
                 new() { Name = ApiScopes.SitesRead, Description = "Read site information", Category = "Sites" },
                 new() { Name = ApiScopes.PushSend, Description = "Send push notifications", Category = "Notifications" },
+                new() { Name = ApiScopes.GeoRead, Description = "Read countries, provinces, cities", Category = "Geo" },
+                new() { Name = ApiScopes.GeoWrite, Description = "Create/update cities", Category = "Geo" },
+                new() { Name = ApiScopes.AddressesRead, Description = "Read addresses and GPS data", Category = "Addresses" },
+                new() { Name = ApiScopes.AddressesWrite, Description = "Create/update addresses", Category = "Addresses" },
                 new() { Name = ApiScopes.Admin, Description = "Full administrative access", Category = "Admin" }
             }
         };

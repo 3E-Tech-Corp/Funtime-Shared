@@ -139,6 +139,10 @@ Your API key may be granted one or more of the following scopes:
 | `assets:write` | Upload, register links, and delete assets |
 | `sites:read` | Read site membership information |
 | `push:send` | Send push notifications |
+| `geo:read` | Read countries, provinces/states, cities |
+| `geo:write` | Create/update cities with GPS |
+| `addresses:read` | Read addresses and GPS coordinates |
+| `addresses:write` | Create/update addresses |
 | `admin` | Full administrative access (grants all scopes) |
 
 ## Protected Endpoints by Scope
@@ -261,6 +265,40 @@ Push endpoints return detailed delivery status to help you track notification de
 - `error`: Error message if success is false
 
 **Note:** The shared notification service handles real-time delivery only. Each site should persist notification history in its own database for user notification pages.
+
+### `geo:read`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/geo/countries` | List all active countries |
+| GET | `/geo/countries/{id}` | Get single country |
+| GET | `/geo/countries/{countryId}/provinces` | List provinces for a country |
+| GET | `/geo/provinces/{id}` | Get single province with country info |
+| GET | `/geo/provinces/{provinceId}/cities` | List cities for a province |
+| GET | `/geo/cities/{id}` | Get single city with full hierarchy |
+| GET | `/geo/cities/search?query=` | Search cities by name |
+
+### `geo:write`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/geo/cities` | Create a new city |
+| PUT | `/geo/cities/{id}/gps` | Update city GPS coordinates |
+
+### `addresses:read`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/addresses/{id}` | Get address with full location hierarchy |
+| GET | `/addresses/{id}/gps` | Quick GPS lookup for LBS caching |
+| GET | `/addresses/lookup?cityId=&line1=` | Find existing address (avoid duplicates) |
+| POST | `/addresses/gps/batch` | Batch GPS lookup (max 100) |
+
+### `addresses:write`
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/addresses` | Create address, returns ID + GPS |
+| PUT | `/addresses/{id}` | Update address |
+| PUT | `/addresses/{id}/gps` | Update GPS coordinates only |
+
+**See [ADDRESS_AND_GEO_API.md](./ADDRESS_AND_GEO_API.md) for detailed documentation.**
 
 ## SignalR Client Integration
 

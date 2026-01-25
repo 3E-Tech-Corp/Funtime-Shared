@@ -161,6 +161,14 @@ public static class ApiScopes
     // Push notification scopes
     public const string PushSend = "push:send";
 
+    // Geo scopes (countries, provinces, cities)
+    public const string GeoRead = "geo:read";
+    public const string GeoWrite = "geo:write";
+
+    // Address scopes
+    public const string AddressesRead = "addresses:read";
+    public const string AddressesWrite = "addresses:write";
+
     // Admin scope (full access)
     public const string Admin = "admin";
 
@@ -174,6 +182,8 @@ public static class ApiScopes
         AssetsRead, AssetsWrite,
         SitesRead,
         PushSend,
+        GeoRead, GeoWrite,
+        AddressesRead, AddressesWrite,
         Admin
     };
 }
