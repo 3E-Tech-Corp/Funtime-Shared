@@ -3,6 +3,7 @@ using Microsoft.Data.SqlClient;
 using Dapper;
 using Funtime.Identity.Api.Auth;
 using Funtime.Identity.Api.Models;
+using Funtime.Identity.Api.Services;
 using System.Security.Claims;
 
 namespace Funtime.Identity.Api.Controllers;
@@ -15,14 +16,17 @@ namespace Funtime.Identity.Api.Controllers;
 public class AddressController : ControllerBase
 {
     private readonly string _connectionString;
+    private readonly IGeocodingService _geocodingService;
     private readonly ILogger<AddressController> _logger;
 
     public AddressController(
         IConfiguration configuration,
+        IGeocodingService geocodingService,
         ILogger<AddressController> logger)
     {
         _connectionString = configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("DefaultConnection not configured");
+        _geocodingService = geocodingService;
         _logger = logger;
     }
 
@@ -71,12 +75,18 @@ public class AddressController : ControllerBase
 
         using var conn = CreateConnection();
 
-        // Verify city exists and get its GPS
-        var city = await conn.QuerySingleOrDefaultAsync<CityGpsInfo>(
-            @"SELECT Id, Latitude, Longitude FROM Cities WHERE Id = @Id AND IsActive = 1",
+        // Get city with full hierarchy for geocoding
+        var cityInfo = await conn.QuerySingleOrDefaultAsync<CityFullInfo>(
+            @"SELECT c.Id, c.Name AS CityName, c.Latitude, c.Longitude,
+                     p.Name AS ProvinceStateName, p.Code AS ProvinceStateCode,
+                     co.Name AS CountryName, co.Code2 AS CountryCode
+              FROM Cities c
+              JOIN ProvinceStates p ON c.ProvinceStateId = p.Id
+              JOIN Countries co ON p.CountryId = co.Id
+              WHERE c.Id = @Id AND c.IsActive = 1",
             new { Id = request.CityId });
 
-        if (city == null)
+        if (cityInfo == null)
             return BadRequest(new { message = "City not found." });
 
         // Check for existing duplicate address (same city, line1, postal code)
@@ -94,8 +104,8 @@ public class AddressController : ControllerBase
         if (existing != null)
         {
             // Return existing address - use its GPS or fallback to city
-            var existingLat = existing.Latitude ?? city.Latitude;
-            var existingLng = existing.Longitude ?? city.Longitude;
+            var existingLat = existing.Latitude ?? cityInfo.Latitude;
+            var existingLng = existing.Longitude ?? cityInfo.Longitude;
 
             _logger.LogDebug("Returning existing address {AddressId} (duplicate detected)", existing.Id);
 
@@ -105,9 +115,60 @@ public class AddressController : ControllerBase
                 Latitude = existingLat,
                 Longitude = existingLng,
                 IsVerified = existing.IsVerified,
-                GpsSource = existing.Latitude.HasValue ? "address" : (city.Latitude.HasValue ? "city" : "none"),
+                GpsSource = existing.Latitude.HasValue ? "address" : (cityInfo.Latitude.HasValue ? "city" : "none"),
                 IsExisting = true
             });
+        }
+
+        // Determine GPS coordinates
+        decimal? latitude = request.Latitude;
+        decimal? longitude = request.Longitude;
+        string gpsSource = "none";
+        bool isVerified = false;
+
+        if (latitude.HasValue && longitude.HasValue)
+        {
+            // GPS provided in request
+            gpsSource = "address";
+            isVerified = true;
+        }
+        else if (_geocodingService.IsEnabled)
+        {
+            // Try geocoding
+            var geocodeRequest = new GeocodingRequest
+            {
+                Line1 = normalizedLine1,
+                Line2 = request.Line2?.Trim(),
+                City = cityInfo.CityName,
+                StateProvince = cityInfo.ProvinceStateName,
+                PostalCode = normalizedPostal,
+                Country = cityInfo.CountryName,
+                CountryCode = cityInfo.CountryCode
+            };
+
+            var geocodeResult = await _geocodingService.GeocodeAsync(geocodeRequest);
+
+            if (geocodeResult.Success && geocodeResult.Latitude.HasValue && geocodeResult.Longitude.HasValue)
+            {
+                latitude = geocodeResult.Latitude;
+                longitude = geocodeResult.Longitude;
+                gpsSource = $"geocoded:{geocodeResult.Provider}";
+                isVerified = true;
+                _logger.LogInformation("Address geocoded via {Provider}: ({Lat}, {Lng})",
+                    geocodeResult.Provider, latitude, longitude);
+            }
+            else
+            {
+                _logger.LogDebug("Geocoding failed: {Error}, falling back to city GPS", geocodeResult.Error);
+            }
+        }
+
+        // Fall back to city GPS if still no coordinates
+        if (!latitude.HasValue || !longitude.HasValue)
+        {
+            latitude = cityInfo.Latitude;
+            longitude = cityInfo.Longitude;
+            gpsSource = cityInfo.Latitude.HasValue ? "city" : "none";
         }
 
         // Create new address
@@ -121,25 +182,22 @@ public class AddressController : ControllerBase
                 Line1 = normalizedLine1,
                 Line2 = request.Line2?.Trim(),
                 PostalCode = normalizedPostal,
-                request.Latitude,
-                request.Longitude,
-                IsVerified = request.Latitude.HasValue && request.Longitude.HasValue,
+                Latitude = latitude,
+                Longitude = longitude,
+                IsVerified = isVerified,
                 CreatedByUserId = userId
             });
 
-        // Return ID and GPS (use address GPS if available, fallback to city GPS)
-        var responseLatitude = request.Latitude ?? city.Latitude;
-        var responseLongitude = request.Longitude ?? city.Longitude;
-
-        _logger.LogInformation("Address {AddressId} created by user {UserId}", newId, userId);
+        _logger.LogInformation("Address {AddressId} created by user {UserId}, GPS source: {GpsSource}",
+            newId, userId, gpsSource);
 
         return Ok(new AddressCreatedResponse
         {
             Id = newId,
-            Latitude = responseLatitude,
-            Longitude = responseLongitude,
-            IsVerified = request.Latitude.HasValue && request.Longitude.HasValue,
-            GpsSource = request.Latitude.HasValue ? "address" : (city.Latitude.HasValue ? "city" : "none"),
+            Latitude = latitude,
+            Longitude = longitude,
+            IsVerified = isVerified,
+            GpsSource = gpsSource,
             IsExisting = false
         });
     }
@@ -438,6 +496,18 @@ internal class CityGpsInfo
     public int Id { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
+}
+
+internal class CityFullInfo
+{
+    public int Id { get; set; }
+    public string CityName { get; set; } = string.Empty;
+    public decimal? Latitude { get; set; }
+    public decimal? Longitude { get; set; }
+    public string ProvinceStateName { get; set; } = string.Empty;
+    public string ProvinceStateCode { get; set; } = string.Empty;
+    public string CountryName { get; set; } = string.Empty;
+    public string CountryCode { get; set; } = string.Empty;
 }
 
 internal class ExistingAddressInfo

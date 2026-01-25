@@ -5,6 +5,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.Services;
+using Funtime.Identity.Api.Services.Geocoding;
 using Funtime.Identity.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -79,6 +80,27 @@ else
 {
     builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 }
+
+// Geocoding Services - configurable provider (google, nominatim, azure, or none)
+builder.Services.Configure<GeocodingOptions>(builder.Configuration.GetSection("Geocoding"));
+
+// Register HttpClients for geocoding providers
+builder.Services.AddHttpClient<GoogleGeocodingService>();
+builder.Services.AddHttpClient<NominatimGeocodingService>(client =>
+{
+    // Nominatim requires a user agent per OSM usage policy
+    var appName = builder.Configuration["Geocoding:Nominatim:UserAgent"] ?? "FuntimeIdentityApi/1.0";
+    client.DefaultRequestHeaders.UserAgent.ParseAdd(appName);
+});
+builder.Services.AddHttpClient<AzureMapsGeocodingService>();
+
+// Register geocoding service implementations
+builder.Services.AddScoped<GoogleGeocodingService>();
+builder.Services.AddScoped<NominatimGeocodingService>();
+builder.Services.AddScoped<AzureMapsGeocodingService>();
+
+// Register the factory as the main IGeocodingService
+builder.Services.AddScoped<IGeocodingService, GeocodingServiceFactory>();
 
 // Configure form options for large file uploads (videos up to 100MB)
 builder.Services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>

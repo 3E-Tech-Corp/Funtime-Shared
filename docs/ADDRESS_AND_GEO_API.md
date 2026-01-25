@@ -183,7 +183,10 @@ POST /addresses
 ```
 
 The `gpsSource` field indicates where GPS came from:
-- `"address"` - Precise coordinates provided for this address
+- `"address"` - Precise coordinates provided in the request
+- `"geocoded:google"` - Coordinates obtained via Google Maps geocoding
+- `"geocoded:nominatim"` - Coordinates obtained via OpenStreetMap Nominatim
+- `"geocoded:azure"` - Coordinates obtained via Azure Maps geocoding
 - `"city"` - Fallback to city center coordinates
 - `"none"` - No GPS available
 
@@ -367,6 +370,79 @@ if (cities.data.length > 0) {
   });
 }
 ```
+
+## Geocoding Configuration
+
+The API can automatically geocode addresses when GPS coordinates are not provided. This is configurable via `appsettings.json`.
+
+### GPS Resolution Priority
+
+When creating an address without GPS coordinates:
+
+1. **Provided coordinates** - Use latitude/longitude if included in request
+2. **Geocoding service** - If enabled, attempt to geocode the address
+3. **City coordinates** - Fall back to city center coordinates
+4. **None** - No GPS available
+
+### Configuration Options
+
+```json
+{
+  "Geocoding": {
+    "Enabled": true,
+    "Provider": "google",
+    "EnableCaching": true,
+    "CacheMinutes": 1440,
+    "Google": {
+      "ApiKey": "YOUR_GOOGLE_MAPS_API_KEY",
+      "Region": "us"
+    },
+    "Nominatim": {
+      "BaseUrl": "https://nominatim.openstreetmap.org",
+      "UserAgent": "YourApp/1.0 (contact@example.com)"
+    },
+    "AzureMaps": {
+      "SubscriptionKey": "YOUR_AZURE_MAPS_KEY"
+    }
+  }
+}
+```
+
+### Supported Providers
+
+| Provider | Setting | Notes |
+|----------|---------|-------|
+| Google Maps | `"Provider": "google"` | Requires API key with Geocoding API enabled |
+| OpenStreetMap Nominatim | `"Provider": "nominatim"` | Free, rate-limited (1 req/sec) |
+| Azure Maps | `"Provider": "azure"` | Requires Azure subscription |
+| Disabled | `"Provider": "none"` | No geocoding, uses city fallback |
+
+### Provider Details
+
+**Google Maps**
+- Most accurate for commercial use
+- Requires billing-enabled Google Cloud project
+- Configure region for bias (e.g., "us", "ca", "gb")
+
+**OpenStreetMap Nominatim**
+- Free for light usage
+- Requires User-Agent identifying your application
+- Rate limited to 1 request per second
+- Good for non-commercial/low-volume use
+
+**Azure Maps**
+- Enterprise-grade accuracy
+- Requires Azure subscription with Maps account
+- Pay-as-you-go pricing
+
+### Caching
+
+Geocoding results are cached in memory to reduce API calls:
+
+- `EnableCaching`: Turn caching on/off (default: true)
+- `CacheMinutes`: How long to cache results (default: 1440 = 24 hours)
+
+Cache keys are based on the normalized address string, so identical addresses won't trigger multiple API calls.
 
 ## Database Setup
 
