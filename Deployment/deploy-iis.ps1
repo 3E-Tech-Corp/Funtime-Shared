@@ -114,7 +114,27 @@ Write-Host "`n[DEPLOY] Copying backend..." -ForegroundColor Yellow
 $preserveFiles = @("appsettings.Production.json", "appsettings.production.json", "web.config", "uploads", "wwwroot", "logs")
 Get-ChildItem $BackendPath -Exclude $preserveFiles | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
+# Backup preserved files before copy
+$preservedBackups = @{}
+foreach ($pf in $preserveFiles) {
+    $pfPath = Join-Path $BackendPath $pf
+    if (Test-Path $pfPath -PathType Leaf) {
+        $tempPath = Join-Path $env:TEMP "deploy_preserve_$pf"
+        Copy-Item $pfPath $tempPath -Force
+        $preservedBackups[$pf] = $tempPath
+        Write-Host "[DEPLOY] Preserving $pf"
+    }
+}
+
 Copy-Item -Path "$BackendArtifact\*" -Destination $BackendPath -Recurse -Force
+
+# Restore preserved files after copy
+foreach ($entry in $preservedBackups.GetEnumerator()) {
+    $destPath = Join-Path $BackendPath $entry.Key
+    Copy-Item $entry.Value $destPath -Force
+    Remove-Item $entry.Value -Force
+    Write-Host "[DEPLOY] Restored $($entry.Key)"
+}
 Write-Host "[DEPLOY] Backend deployed" -ForegroundColor Green
 
 # -- Start app pool --
