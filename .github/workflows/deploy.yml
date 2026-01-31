@@ -92,8 +92,7 @@ jobs:
         shell: powershell
         run: |
           & artifacts\scripts\deploy-iis.ps1 `
-            -SiteName "shared.funtimepb.com" `
-            -AppPoolName "_PB.Shared" `
+            -SiteName "_PB.Shared" `
             -FrontendPath "F:\New_WWW\FuntimeShared\WWW" `
             -BackendPath "F:\New_WWW\FuntimeShared\API" `
             -FrontendArtifact "artifacts\frontend" `
