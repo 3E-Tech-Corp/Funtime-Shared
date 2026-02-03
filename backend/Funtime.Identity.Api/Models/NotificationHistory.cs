@@ -12,6 +12,9 @@ public class HistoryRow
     public string? CcList { get; set; }
     public string? BccList { get; set; }
     public string? Subject { get; set; }
+    public string? BodyHtml { get; set; }
+    public string? BodyJson { get; set; }
+    public string? DetailJson { get; set; }
     public string? Status { get; set; }
     public int Attempts { get; set; }
     public string? ErrorMessage { get; set; }

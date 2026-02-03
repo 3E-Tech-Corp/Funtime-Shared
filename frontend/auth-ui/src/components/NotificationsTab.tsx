@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2 } from 'lucide-react';
+import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2, Eye } from 'lucide-react';
 import { notificationApi } from '../utils/api';
 import type {
   MailProfile,
@@ -51,6 +51,9 @@ export function NotificationsTab() {
   const [historyItems, setHistoryItems] = useState<HistoryRow[]>([]);
   const [historyPage, setHistoryPage] = useState(1);
   const [historyTotal, setHistoryTotal] = useState(0);
+
+  // Body view modal state
+  const [viewingBody, setViewingBody] = useState<{ title: string; bodyHtml?: string; bodyJson?: string; detailJson?: string } | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -578,6 +581,20 @@ export function NotificationsTab() {
                     }`}>
                       {item.status}
                     </span>
+                    {(item.bodyJson || item.bodyHtml || item.detailJson) && (
+                      <button
+                        onClick={() => setViewingBody({
+                          title: `Outbox #${item.id} — ${item.toList || 'Unknown'}`,
+                          bodyHtml: item.bodyHtml,
+                          bodyJson: item.bodyJson,
+                          detailJson: item.detailJson,
+                        })}
+                        className="p-1 hover:bg-gray-100 rounded"
+                        title="View Body"
+                      >
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      </button>
+                    )}
                     <button onClick={() => handleRetryOutbox(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
                       <RefreshCw className="w-4 h-4 text-blue-500" />
                     </button>
@@ -644,6 +661,20 @@ export function NotificationsTab() {
                     }`}>
                       {item.status}
                     </span>
+                    {(item.bodyJson || item.bodyHtml || item.detailJson) && (
+                      <button
+                        onClick={() => setViewingBody({
+                          title: `Sent #${item.id} — ${item.toList || 'Unknown'}`,
+                          bodyHtml: item.bodyHtml,
+                          bodyJson: item.bodyJson,
+                          detailJson: item.detailJson,
+                        })}
+                        className="p-1 hover:bg-gray-100 rounded"
+                        title="View Body"
+                      >
+                        <Eye className="w-4 h-4 text-gray-500" />
+                      </button>
+                    )}
                     <button onClick={() => handleRetryHistory(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
                       <RefreshCw className="w-4 h-4 text-blue-500" />
                     </button>
@@ -911,6 +942,61 @@ export function NotificationsTab() {
             <div className="p-4 border-t flex justify-end gap-2">
               <button onClick={() => setEditingTemplate(null)} className="px-4 py-2 border rounded-lg">Cancel</button>
               <button onClick={handleSaveTemplate} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Body View Modal */}
+      {viewingBody && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setViewingBody(null)}>
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full m-4 max-h-[90vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="p-4 border-b flex items-center justify-between shrink-0">
+              <h3 className="font-semibold truncate">{viewingBody.title}</h3>
+              <button onClick={() => setViewingBody(null)} className="p-1 hover:bg-gray-100 rounded">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto space-y-4">
+              {viewingBody.bodyJson && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-600 mb-2">Body JSON</h4>
+                  <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm font-mono whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                    {(() => {
+                      try { return JSON.stringify(JSON.parse(viewingBody.bodyJson!), null, 2); }
+                      catch { return viewingBody.bodyJson; }
+                    })()}
+                  </pre>
+                </div>
+              )}
+              {viewingBody.detailJson && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-600 mb-2">Detail JSON</h4>
+                  <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm font-mono whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                    {(() => {
+                      try { return JSON.stringify(JSON.parse(viewingBody.detailJson!), null, 2); }
+                      catch { return viewingBody.detailJson; }
+                    })()}
+                  </pre>
+                </div>
+              )}
+              {viewingBody.bodyHtml && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-600 mb-2">Body HTML</h4>
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="bg-gray-50 px-3 py-2 border-b flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Preview</span>
+                    </div>
+                    <div
+                      className="p-3 bg-white max-h-80 overflow-y-auto"
+                      dangerouslySetInnerHTML={{ __html: viewingBody.bodyHtml }}
+                    />
+                  </div>
+                </div>
+              )}
+              {!viewingBody.bodyJson && !viewingBody.detailJson && !viewingBody.bodyHtml && (
+                <p className="text-gray-500 text-center py-8">No body content available</p>
+              )}
             </div>
           </div>
         </div>

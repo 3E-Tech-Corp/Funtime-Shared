@@ -998,6 +998,9 @@ export interface HistoryRow {
   ccList?: string;
   bccList?: string;
   subject?: string;
+  bodyHtml?: string;
+  bodyJson?: string;
+  detailJson?: string;
   status?: string;
   attempts: number;
   errorMessage?: string;
