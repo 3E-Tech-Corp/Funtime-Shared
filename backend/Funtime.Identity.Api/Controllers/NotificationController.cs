@@ -111,14 +111,22 @@ public class NotificationController : ControllerBase
 
     #region Applications
 
+    private static string GenerateApiKey()
+    {
+        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+        return "fxn_" + Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
     [HttpGet("apps")]
-    public async Task<ActionResult<List<AppRow>>> GetApps()
+    public async Task<ActionResult<List<AppResponseDto>>> GetApps()
     {
         try
         {
             using var conn = CreateConnection();
-            var apps = await conn.QueryAsync<AppRow>("exec dbo.csp_Get_Apps");
-            return apps.ToList();
+            var apps = await conn.QueryAsync<AppRow>(
+                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
+                  FROM dbo.Apps ORDER BY App_ID");
+            return apps.Select(a => AppResponseDto.FromRow(a)).ToList();
         }
         catch (Exception ex)
         {
@@ -128,16 +136,23 @@ public class NotificationController : ControllerBase
     }
 
     [HttpPost("apps")]
-    public async Task<ActionResult<AppRow>> CreateApp([FromBody] AppRow app)
+    public async Task<ActionResult<AppResponseDto>> CreateApp([FromBody] AppRow app)
     {
         try
         {
             using var conn = CreateConnection();
-            var result = await conn.QuerySingleOrDefaultAsync<AppRow>(
-                "exec dbo.csp_Apps_Add @App_Code, @Descr, @ProfileID",
-                new { app.App_Code, app.Descr, app.ProfileID });
-            _logger.LogInformation("App {AppCode} created", app.App_Code);
-            return result ?? app;
+            var newKey = GenerateApiKey();
+            var id = await conn.QuerySingleAsync<int>(
+                @"INSERT INTO dbo.Apps (App_Code, Descr, ProfileID, ApiKey, IsActive, CreatedAt, RequestCount, Notes)
+                  OUTPUT INSERTED.App_ID
+                  VALUES (@App_Code, @Descr, @ProfileID, @ApiKey, 1, GETUTCDATE(), 0, @Notes)",
+                new { app.App_Code, app.Descr, app.ProfileID, ApiKey = newKey, app.Notes });
+            _logger.LogInformation("App {AppCode} created with ID {Id}", app.App_Code, id);
+
+            var created = await conn.QueryFirstAsync<AppRow>(
+                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
+                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
+            return AppResponseDto.FromRow(created, newKey);
         }
         catch (Exception ex)
         {
@@ -147,22 +162,98 @@ public class NotificationController : ControllerBase
     }
 
     [HttpPut("apps/{id}")]
-    public async Task<ActionResult<AppRow>> UpdateApp(int id, [FromBody] AppRow app)
+    public async Task<ActionResult<AppResponseDto>> UpdateApp(int id, [FromBody] AppRow app)
     {
         try
         {
             using var conn = CreateConnection();
             await conn.ExecuteAsync(
-                "exec dbo.csp_Apps_Update @App_ID, @App_Code, @Descr, @ProfileID",
-                new { App_ID = id, app.App_Code, app.Descr, app.ProfileID });
+                @"UPDATE dbo.Apps SET App_Code = @App_Code, Descr = @Descr, ProfileID = @ProfileID, Notes = @Notes
+                  WHERE App_ID = @App_ID",
+                new { App_ID = id, app.App_Code, app.Descr, app.ProfileID, app.Notes });
             _logger.LogInformation("App {Id} updated", id);
-            app.App_ID = id;
-            return app;
+
+            var updated = await conn.QueryFirstAsync<AppRow>(
+                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
+                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
+            return AppResponseDto.FromRow(updated);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to update app {Id}", id);
             return StatusCode(500, new { message = "Failed to update application" });
+        }
+    }
+
+    [HttpPost("apps/{id}/toggle")]
+    public async Task<ActionResult<AppResponseDto>> ToggleApp(int id)
+    {
+        try
+        {
+            using var conn = CreateConnection();
+            await conn.ExecuteAsync(
+                "UPDATE dbo.Apps SET IsActive = CASE WHEN IsActive = 1 THEN 0 ELSE 1 END WHERE App_ID = @Id",
+                new { Id = id });
+
+            var updated = await conn.QueryFirstOrDefaultAsync<AppRow>(
+                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
+                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
+            if (updated == null) return NotFound(new { message = $"App {id} not found" });
+
+            _logger.LogInformation("App {Id} toggled to {Status}", id, updated.IsActive ? "active" : "inactive");
+            return AppResponseDto.FromRow(updated);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to toggle app {Id}", id);
+            return StatusCode(500, new { message = "Failed to toggle application" });
+        }
+    }
+
+    [HttpPost("apps/{id}/regenerate-key")]
+    public async Task<ActionResult<AppResponseDto>> RegenerateAppKey(int id)
+    {
+        try
+        {
+            using var conn = CreateConnection();
+            var newKey = GenerateApiKey();
+            var affected = await conn.ExecuteAsync(
+                "UPDATE dbo.Apps SET ApiKey = @ApiKey WHERE App_ID = @Id",
+                new { ApiKey = newKey, Id = id });
+            if (affected == 0) return NotFound(new { message = $"App {id} not found" });
+
+            var updated = await conn.QueryFirstAsync<AppRow>(
+                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
+                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
+
+            _logger.LogInformation("App {Id} API key regenerated", id);
+            return AppResponseDto.FromRow(updated, newKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to regenerate key for app {Id}", id);
+            return StatusCode(500, new { message = "Failed to regenerate API key" });
+        }
+    }
+
+    [HttpDelete("apps/{id}/key")]
+    public async Task<ActionResult> RevokeAppKey(int id)
+    {
+        try
+        {
+            using var conn = CreateConnection();
+            var affected = await conn.ExecuteAsync(
+                "UPDATE dbo.Apps SET ApiKey = NULL WHERE App_ID = @Id",
+                new { Id = id });
+            if (affected == 0) return NotFound(new { message = $"App {id} not found" });
+
+            _logger.LogInformation("App {Id} API key revoked", id);
+            return Ok(new { message = "API key revoked" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to revoke key for app {Id}", id);
+            return StatusCode(500, new { message = "Failed to revoke API key" });
         }
     }
 

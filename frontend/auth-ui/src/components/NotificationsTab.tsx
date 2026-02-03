@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2, Eye } from 'lucide-react';
+import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2, Eye, Key, Copy, Check, ToggleLeft, ToggleRight } from 'lucide-react';
 import { notificationApi } from '../utils/api';
 import type {
   MailProfile,
@@ -54,6 +54,10 @@ export function NotificationsTab() {
 
   // Body view modal state
   const [viewingBody, setViewingBody] = useState<{ title: string; bodyHtml?: string; bodyJson?: string; detailJson?: string } | null>(null);
+
+  // API key management state
+  const [revealedKey, setRevealedKey] = useState<{ appId: number; key: string } | null>(null);
+  const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -203,7 +207,11 @@ export function NotificationsTab() {
       if (editingApp.app_ID) {
         await notificationApi.updateApp(editingApp.app_ID, editingApp);
       } else {
-        await notificationApi.createApp(editingApp);
+        const created = await notificationApi.createApp(editingApp);
+        // Show the generated API key
+        if (created.fullKey) {
+          setRevealedKey({ appId: created.app_ID, key: created.fullKey });
+        }
       }
       setEditingApp(null);
       loadApps();
@@ -284,6 +292,46 @@ export function NotificationsTab() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     }
+  };
+
+  // App API key handlers
+  const handleToggleApp = async (id: number) => {
+    try {
+      const updated = await notificationApi.toggleApp(id);
+      setApps(prev => prev.map(a => a.app_ID === id ? updated : a));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to toggle app');
+    }
+  };
+
+  const handleRegenerateKey = async (id: number) => {
+    if (!confirm('Regenerate API key? The old key will stop working immediately.')) return;
+    try {
+      const updated = await notificationApi.regenerateAppKey(id);
+      setApps(prev => prev.map(a => a.app_ID === id ? updated : a));
+      if (updated.fullKey) {
+        setRevealedKey({ appId: id, key: updated.fullKey });
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to regenerate key');
+    }
+  };
+
+  const handleRevokeKey = async (id: number) => {
+    if (!confirm('Revoke this API key? The app will lose API access.')) return;
+    try {
+      await notificationApi.revokeAppKey(id);
+      setApps(prev => prev.map(a => a.app_ID === id ? { ...a, maskedKey: undefined } : a));
+      if (revealedKey?.appId === id) setRevealedKey(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to revoke key');
+    }
+  };
+
+  const copyKey = async (key: string, appId: number) => {
+    await navigator.clipboard.writeText(key);
+    setCopiedKeyId(appId);
+    setTimeout(() => setCopiedKeyId(null), 2000);
   };
 
   const formatDate = (dateString?: string) => {
@@ -438,7 +486,7 @@ export function NotificationsTab() {
         {!isLoading && subTab === 'apps' && (
           <>
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="font-semibold">Applications</h3>
+              <h3 className="font-semibold">Applications & API Keys</h3>
               <button
                 onClick={() => setEditingApp({})}
                 className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
@@ -446,21 +494,110 @@ export function NotificationsTab() {
                 <Plus className="w-4 h-4" /> Add Application
               </button>
             </div>
+
+            {/* Revealed key banner */}
+            {revealedKey && (
+              <div className="mx-4 mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h4 className="font-medium text-green-800 flex items-center gap-2">
+                      <Key className="w-4 h-4" /> API Key Generated
+                    </h4>
+                    <p className="text-sm text-green-700 mt-1">Copy this key now — it won't be shown again.</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <code className="px-3 py-2 bg-white border border-green-300 rounded font-mono text-sm select-all">
+                        {revealedKey.key}
+                      </code>
+                      <button
+                        onClick={() => copyKey(revealedKey.key, revealedKey.appId)}
+                        className="p-2 text-green-600 hover:bg-green-100 rounded"
+                        title="Copy to clipboard"
+                      >
+                        {copiedKeyId === revealedKey.appId ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <button onClick={() => setRevealedKey(null)} className="text-green-600 hover:text-green-800">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="divide-y divide-gray-200">
               {apps.map((app) => (
-                <div key={app.app_ID} className="p-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{app.app_Code}</p>
-                    <p className="text-sm text-gray-500">{app.descr}</p>
-                    {app.profileID && (
-                      <p className="text-sm text-gray-400">
-                        Profile: {profiles.find(p => p.profileId === app.profileID)?.profileCode || app.profileID}
-                      </p>
-                    )}
+                <div key={app.app_ID} className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium">{app.app_Code}</p>
+                        <span className={`px-2 py-0.5 text-xs rounded-full ${
+                          app.isActive !== false ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {app.isActive !== false ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500">{app.descr}</p>
+                      {app.profileID && (
+                        <p className="text-sm text-gray-400">
+                          Profile: {profiles.find(p => p.profileId === app.profileID)?.profileCode || app.profileID}
+                        </p>
+                      )}
+
+                      {/* API Key info */}
+                      <div className="mt-2 flex items-center gap-3 text-sm">
+                        {app.maskedKey ? (
+                          <>
+                            <span className="flex items-center gap-1 text-gray-500">
+                              <Key className="w-3.5 h-3.5" />
+                              <code className="bg-gray-100 px-2 py-0.5 rounded text-xs">{app.maskedKey}</code>
+                            </span>
+                            {app.requestCount != null && app.requestCount > 0 && (
+                              <span className="text-gray-400">{app.requestCount.toLocaleString()} requests</span>
+                            )}
+                            {app.lastUsedAt && (
+                              <span className="text-gray-400">Last used: {formatDate(app.lastUsedAt)}</span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-400 italic text-xs">No API key</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleToggleApp(app.app_ID)}
+                        className="p-1.5 hover:bg-gray-100 rounded"
+                        title={app.isActive !== false ? 'Deactivate' : 'Activate'}
+                      >
+                        {app.isActive !== false
+                          ? <ToggleRight className="w-4 h-4 text-green-500" />
+                          : <ToggleLeft className="w-4 h-4 text-gray-400" />
+                        }
+                      </button>
+                      <button
+                        onClick={() => handleRegenerateKey(app.app_ID)}
+                        className="p-1.5 hover:bg-gray-100 rounded"
+                        title={app.maskedKey ? 'Regenerate API Key' : 'Generate API Key'}
+                      >
+                        <Key className="w-4 h-4 text-yellow-600" />
+                      </button>
+                      {app.maskedKey && (
+                        <button
+                          onClick={() => handleRevokeKey(app.app_ID)}
+                          className="p-1.5 hover:bg-gray-100 rounded"
+                          title="Revoke API Key"
+                        >
+                          <Trash2 className="w-4 h-4 text-red-400" />
+                        </button>
+                      )}
+                      <button onClick={() => setEditingApp(app)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit">
+                        <Edit2 className="w-4 h-4 text-gray-500" />
+                      </button>
+                    </div>
                   </div>
-                  <button onClick={() => setEditingApp(app)} className="p-1 hover:bg-gray-100 rounded">
-                    <Edit2 className="w-4 h-4 text-gray-500" />
-                  </button>
                 </div>
               ))}
               {apps.length === 0 && (
@@ -868,6 +1005,22 @@ export function NotificationsTab() {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Notes</label>
+                <textarea
+                  value={(editingApp as any).notes || ''}
+                  onChange={(e) => setEditingApp({ ...editingApp, notes: e.target.value } as any)}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  rows={2}
+                  placeholder="Optional notes about this application"
+                />
+              </div>
+              {!editingApp.app_ID && (
+                <p className="text-sm text-blue-600 flex items-center gap-1">
+                  <Key className="w-4 h-4" />
+                  An API key will be generated automatically on create.
+                </p>
+              )}
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
               <button onClick={() => setEditingApp(null)} className="px-4 py-2 border rounded-lg">Cancel</button>

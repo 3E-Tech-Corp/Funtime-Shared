@@ -933,6 +933,13 @@ export interface AppRow {
   app_Code?: string;
   descr?: string;
   profileID?: number;
+  maskedKey?: string;
+  fullKey?: string;
+  isActive?: boolean;
+  createdAt?: string;
+  lastUsedAt?: string;
+  requestCount?: number;
+  notes?: string;
 }
 
 export interface EmailTemplate {
@@ -1087,6 +1094,27 @@ export const notificationApi = {
       method: 'PUT',
       headers: getAuthHeaders(),
       body: JSON.stringify(app),
+    });
+  },
+
+  async toggleApp(id: number): Promise<AppRow> {
+    return request(`/admin/notifications/apps/${id}/toggle`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+  },
+
+  async regenerateAppKey(id: number): Promise<AppRow> {
+    return request(`/admin/notifications/apps/${id}/regenerate-key`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+    });
+  },
+
+  async revokeAppKey(id: number): Promise<void> {
+    return request(`/admin/notifications/apps/${id}/key`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
     });
   },
 
