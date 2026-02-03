@@ -445,16 +445,7 @@ public class NotificationController : ControllerBase
         try
         {
             using var conn = CreateConnection();
-            var items = await conn.QueryAsync<OutboxRow>(
-                @"SELECT eo.ID AS Id, eo.Task_ID AS TaskId, et.TaskCode, et.Status AS TaskStatus,
-                         tmpl.ET_Code AS TemplateCode, et.LangCode,
-                         eo.EmailFrom, eo.EmailFromName, eo.MailPriority, eo.ObjectId,
-                         eo.ToList, eo.CCList, eo.BCCList, eo.Subject,
-                         eo.BodyHtml, eo.BodyJson, eo.DetailJson,
-                         eo.Attempts, eo.Status, eo.CreatedAt
-                  FROM dbo.EmailOutbox eo
-                  LEFT JOIN dbo.EmailTasks et ON et.Task_ID = eo.Task_ID
-                  LEFT JOIN dbo.EmailTemplates tmpl ON tmpl.ET_ID = et.TemplateID");
+            var items = await conn.QueryAsync<OutboxRow>("exec dbo.csp_Outbox_Get");
             var list = items.OrderByDescending(x => x.Id).ToList();
 
             var pagedItems = list
@@ -543,14 +534,7 @@ public class NotificationController : ControllerBase
         try
         {
             using var conn = CreateConnection();
-            var items = await conn.QueryAsync<HistoryRow>(
-                @"SELECT eh.ID, eh.Task_ID AS TaskId, et.TaskCode,
-                         eh.ToList, eh.CCList, eh.BCCList, eh.Subject,
-                         eh.BodyHtml, eh.BodyJson, eh.DetailJson,
-                         eh.Status, eh.Attempts, eh.ErrorMessage,
-                         eh.SentAt, eh.CreatedAt
-                  FROM dbo.EmailHistory eh
-                  LEFT JOIN dbo.EmailTasks et ON et.Task_ID = eh.Task_ID");
+            var items = await conn.QueryAsync<HistoryRow>("exec dbo.csp_History_Get");
             var list = items.OrderByDescending(x => x.ID).ToList();
 
             var pagedItems = list
