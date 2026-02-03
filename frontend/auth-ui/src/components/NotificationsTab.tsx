@@ -53,7 +53,7 @@ export function NotificationsTab() {
   const [historyTotal, setHistoryTotal] = useState(0);
 
   // Body view modal state
-  const [viewingBody, setViewingBody] = useState<{ title: string; bodyHtml?: string; bodyJson?: string; detailJson?: string } | null>(null);
+  const [viewingBody, setViewingBody] = useState<{ title: string; bodyHtml?: string; bodyJson?: string; detailJson?: string; rawData?: string } | null>(null);
 
   // API key management state
   const [revealedKey, setRevealedKey] = useState<{ appId: number; key: string } | null>(null);
@@ -718,20 +718,27 @@ export function NotificationsTab() {
                     }`}>
                       {item.status}
                     </span>
-                    {(item.bodyJson || item.bodyHtml || item.detailJson) && (
-                      <button
-                        onClick={() => setViewingBody({
-                          title: `Outbox #${item.id} — ${item.toList || 'Unknown'}`,
-                          bodyHtml: item.bodyHtml,
-                          bodyJson: item.bodyJson,
-                          detailJson: item.detailJson,
-                        })}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="View Body"
-                      >
-                        <Eye className="w-4 h-4 text-gray-500" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setViewingBody({
+                        title: `Outbox #${item.id} — ${item.toList || 'Unknown'}`,
+                        bodyHtml: item.bodyHtml,
+                        bodyJson: item.bodyJson,
+                        detailJson: item.detailJson,
+                        rawData: JSON.stringify({
+                          id: item.id, taskCode: item.taskCode, taskStatus: item.taskStatus,
+                          templateCode: item.templateCode, toList: item.toList,
+                          ccList: item.ccList, bccList: item.bccList, subject: item.subject,
+                          emailFrom: item.emailFrom, emailFromName: item.emailFromName,
+                          objectId: item.objectId, attempts: item.attempts,
+                          status: item.status, createdAt: item.createdAt,
+                          bodyJson: item.bodyJson, detailJson: item.detailJson,
+                        }, null, 2),
+                      })}
+                      className="p-1 hover:bg-gray-100 rounded"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4 text-gray-500" />
+                    </button>
                     <button onClick={() => handleRetryOutbox(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
                       <RefreshCw className="w-4 h-4 text-blue-500" />
                     </button>
@@ -798,20 +805,26 @@ export function NotificationsTab() {
                     }`}>
                       {item.status}
                     </span>
-                    {(item.bodyJson || item.bodyHtml || item.detailJson) && (
-                      <button
-                        onClick={() => setViewingBody({
-                          title: `Sent #${item.id} — ${item.toList || 'Unknown'}`,
-                          bodyHtml: item.bodyHtml,
-                          bodyJson: item.bodyJson,
-                          detailJson: item.detailJson,
-                        })}
-                        className="p-1 hover:bg-gray-100 rounded"
-                        title="View Body"
-                      >
-                        <Eye className="w-4 h-4 text-gray-500" />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => setViewingBody({
+                        title: `Sent #${item.id} — ${item.toList || 'Unknown'}`,
+                        bodyHtml: item.bodyHtml,
+                        bodyJson: item.bodyJson,
+                        detailJson: item.detailJson,
+                        rawData: JSON.stringify({
+                          id: item.id, taskCode: item.taskCode, taskId: item.taskId,
+                          toList: item.toList, ccList: item.ccList, bccList: item.bccList,
+                          subject: item.subject, status: item.status, attempts: item.attempts,
+                          errorMessage: item.errorMessage,
+                          sentAt: item.sentAt, createdAt: item.createdAt,
+                          bodyJson: item.bodyJson, detailJson: item.detailJson,
+                        }, null, 2),
+                      })}
+                      className="p-1 hover:bg-gray-100 rounded"
+                      title="View Details"
+                    >
+                      <Eye className="w-4 h-4 text-gray-500" />
+                    </button>
                     <button onClick={() => handleRetryHistory(item.id)} className="p-1 hover:bg-gray-100 rounded" title="Retry">
                       <RefreshCw className="w-4 h-4 text-blue-500" />
                     </button>
@@ -1147,8 +1160,15 @@ export function NotificationsTab() {
                   </div>
                 </div>
               )}
-              {!viewingBody.bodyJson && !viewingBody.detailJson && !viewingBody.bodyHtml && (
-                <p className="text-gray-500 text-center py-8">No body content available</p>
+              {viewingBody.rawData && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-600 mb-2">
+                    {!viewingBody.bodyJson && !viewingBody.detailJson && !viewingBody.bodyHtml ? 'Record Data' : 'All Fields'}
+                  </h4>
+                  <pre className="bg-gray-50 border border-gray-200 rounded-lg p-3 text-sm font-mono whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                    {viewingBody.rawData}
+                  </pre>
+                </div>
               )}
             </div>
           </div>
