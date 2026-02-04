@@ -65,6 +65,17 @@ builder.Services.AddMemoryCache();
 // HttpClient for OAuth providers
 builder.Services.AddHttpClient();
 
+// Named HttpClient for FXNotification API (test-send feature)
+builder.Services.AddHttpClient("FXNotification", client =>
+{
+    var baseUrl = builder.Configuration["FXNotification:BaseUrl"];
+    if (!string.IsNullOrEmpty(baseUrl))
+        client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    var apiKey = builder.Configuration["FXNotification:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+});
+
 // SignalR for real-time notifications
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<INotificationService, NotificationService>();

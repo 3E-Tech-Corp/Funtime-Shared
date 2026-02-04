@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2, Eye, Key, Copy, Check, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Mail, FileText, ListTodo, Inbox, History, Plus, Edit2, Trash2, RefreshCw, X, Loader2, AlertCircle, Building2, Eye, Key, Copy, Check, ToggleLeft, ToggleRight, Send } from 'lucide-react';
 import { notificationApi } from '../utils/api';
 import type {
   MailProfile,
@@ -62,6 +62,12 @@ export function NotificationsTab() {
   // API key management state
   const [revealedKey, setRevealedKey] = useState<{ appId: number; key: string } | null>(null);
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
+
+  // Test send state
+  const [testingTask, setTestingTask] = useState<TaskRow | null>(null);
+  const [testRecipient, setTestRecipient] = useState('');
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   useEffect(() => {
     loadStats();
@@ -327,6 +333,27 @@ export function NotificationsTab() {
       loadStats();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete');
+    }
+  };
+
+  // Test send handler
+  const handleTestSend = async () => {
+    if (!testingTask?.task_ID || !testRecipient.trim()) return;
+    setTestSending(true);
+    setTestResult(null);
+    try {
+      const result = await notificationApi.testSendTask(testingTask.task_ID, testRecipient.trim());
+      setTestResult({ type: 'success', message: result.message || 'Test notification queued successfully' });
+      setTimeout(() => {
+        setTestResult(null);
+        setTestingTask(null);
+        setTestRecipient('');
+      }, 3000);
+    } catch (err) {
+      setTestResult({ type: 'error', message: err instanceof Error ? err.message : 'Failed to send test' });
+      setTimeout(() => setTestResult(null), 3000);
+    } finally {
+      setTestSending(false);
     }
   };
 
@@ -711,6 +738,13 @@ export function NotificationsTab() {
                     }`}>
                       {task.status}
                     </span>
+                    <button
+                      onClick={() => { setTestingTask(task); setTestRecipient(''); setTestResult(null); }}
+                      className="p-1 hover:bg-gray-100 rounded"
+                      title="Send Test"
+                    >
+                      <Send className="w-4 h-4 text-blue-500" />
+                    </button>
                     <button onClick={() => setEditingTask(task)} className="p-1 hover:bg-gray-100 rounded">
                       <Edit2 className="w-4 h-4 text-gray-500" />
                     </button>
@@ -1422,6 +1456,70 @@ export function NotificationsTab() {
             <div className="p-4 border-t flex justify-end gap-2">
               <button onClick={() => setEditingTask(null)} className="px-4 py-2 border rounded-lg">Cancel</button>
               <button onClick={handleSaveTask} className="px-4 py-2 bg-blue-600 text-white rounded-lg">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Test Send Modal */}
+      {testingTask && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full m-4">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="font-semibold">Send Test Notification</h3>
+              <button onClick={() => { setTestingTask(null); setTestRecipient(''); setTestResult(null); }}>
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <p className="text-sm text-gray-500">Task</p>
+                <p className="font-medium">{testingTask.taskCode}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500">Type</p>
+                <p className="font-medium">{testingTask.taskType === 'SMS' ? 'SMS' : 'Email'}</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {testingTask.taskType === 'SMS' ? 'Phone Number' : 'Email Address'}
+                </label>
+                <input
+                  type={testingTask.taskType === 'SMS' ? 'tel' : 'email'}
+                  value={testRecipient}
+                  onChange={(e) => setTestRecipient(e.target.value)}
+                  placeholder={testingTask.taskType === 'SMS' ? 'Enter phone number' : 'Enter email address'}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  disabled={testSending}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleTestSend(); }}
+                />
+              </div>
+              {testResult && (
+                <div className={`p-3 rounded-lg text-sm ${
+                  testResult.type === 'success'
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t flex justify-end gap-2">
+              <button
+                onClick={() => { setTestingTask(null); setTestRecipient(''); setTestResult(null); }}
+                className="px-4 py-2 border rounded-lg"
+                disabled={testSending}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTestSend}
+                disabled={testSending || !testRecipient.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg disabled:opacity-50 flex items-center gap-2"
+              >
+                {testSending && <Loader2 className="w-4 h-4 animate-spin" />}
+                Send Test
+              </button>
             </div>
           </div>
         </div>

@@ -1177,6 +1177,14 @@ export const notificationApi = {
     });
   },
 
+  async testSendTask(taskId: number, recipient: string): Promise<{ message: string }> {
+    return request(`/admin/notifications/tasks/${taskId}/test-send`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ recipient }),
+    });
+  },
+
   // Outbox
   async getOutbox(options?: { page?: number; pageSize?: number }): Promise<OutboxListResponse> {
     const params = new URLSearchParams();

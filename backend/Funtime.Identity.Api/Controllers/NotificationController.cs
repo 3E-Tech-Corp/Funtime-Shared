@@ -13,12 +13,14 @@ public class NotificationController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<NotificationController> _logger;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _connectionString;
 
-    public NotificationController(IConfiguration configuration, ILogger<NotificationController> logger)
+    public NotificationController(IConfiguration configuration, ILogger<NotificationController> logger, IHttpClientFactory httpClientFactory)
     {
         _configuration = configuration;
         _logger = logger;
+        _httpClientFactory = httpClientFactory;
         _connectionString = configuration.GetConnectionString("NotificationConnection")
             ?? throw new InvalidOperationException("NotificationConnection not configured");
     }
@@ -482,6 +484,59 @@ public class NotificationController : ControllerBase
         }
     }
 
+    [HttpPost("tasks/{taskId}/test-send")]
+    public async Task<ActionResult> TestSendTask(int taskId, [FromBody] TestSendRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.Recipient))
+                return BadRequest(new { message = "Recipient is required" });
+
+            // Verify task exists
+            using var conn = CreateConnection();
+            var task = await conn.QueryFirstOrDefaultAsync<TaskRow>(
+                "SELECT Task_ID, TaskCode, TaskType FROM dbo.EmailTaskConfig WHERE Task_ID = @TaskId",
+                new { TaskId = taskId });
+            if (task == null)
+                return NotFound(new { message = $"Task {taskId} not found" });
+
+            // Send test notification via FXNotification API
+            var client = _httpClientFactory.CreateClient("FXNotification");
+            var payload = new
+            {
+                taskId = taskId,
+                to = request.Recipient,
+                bodyJson = "{\"test\": true, \"message\": \"Test notification from admin dashboard\"}",
+                priority = "H"
+            };
+
+            var content = new StringContent(
+                System.Text.Json.JsonSerializer.Serialize(payload),
+                System.Text.Encoding.UTF8,
+                "application/json");
+
+            var response = await client.PostAsync("api/notifications/queue", content);
+            var responseBody = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("FXNotification test-send failed for task {TaskId}: {Status} {Body}",
+                    taskId, response.StatusCode, responseBody);
+                return StatusCode((int)response.StatusCode,
+                    new { message = $"Failed to queue test notification: {responseBody}" });
+            }
+
+            _logger.LogInformation("Test notification queued for task {TaskId} ({TaskCode}) to {Recipient}",
+                taskId, task.TaskCode, request.Recipient);
+            return Ok(new { message = $"Test notification queued to {request.Recipient}" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send test notification for task {TaskId}", taskId);
+            return StatusCode(500, new { message = $"Failed to send test notification: {ex.Message}" });
+        }
+    }
+
     #endregion
 
     #region Outbox
@@ -780,6 +835,11 @@ public class NotificationController : ControllerBase
 }
 
 #region DTOs
+
+public class TestSendRequest
+{
+    public string Recipient { get; set; } = string.Empty;
+}
 
 public class LookupItem
 {
