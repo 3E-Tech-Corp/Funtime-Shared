@@ -1,0 +1,63 @@
+name: Update Config
+
+on:
+  workflow_dispatch:
+    inputs:
+      json_path:
+        description: 'JSON path (e.g. FXNotification:ApiKey)'
+        required: true
+        type: string
+      value:
+        description: 'Value to set'
+        required: true
+        type: string
+
+jobs:
+  update:
+    runs-on: [self-hosted, windows, iis]
+    steps:
+      - name: Update config
+        shell: powershell
+        run: |
+          $configPath = "F:\New_WWW\FuntimeShared\API\appsettings.Production.json"
+          $path = "${{ github.event.inputs.json_path }}"
+          $value = "${{ github.event.inputs.value }}"
+
+          if (-not (Test-Path $configPath)) {
+            Write-Host "Creating appsettings.Production.json"
+            '{}' | Set-Content $configPath
+          }
+
+          $json = Get-Content $configPath -Raw | ConvertFrom-Json
+
+          # Support nested paths with colon separator (e.g. FXNotification:ApiKey)
+          $parts = $path -split ':'
+          $current = $json
+          for ($i = 0; $i -lt $parts.Length - 1; $i++) {
+            $prop = $parts[$i]
+            if (-not ($current.PSObject.Properties.Name -contains $prop)) {
+              $current | Add-Member -NotePropertyName $prop -NotePropertyValue (New-Object PSObject)
+            }
+            $current = $current.$prop
+          }
+          $leaf = $parts[-1]
+          if ($current.PSObject.Properties.Name -contains $leaf) {
+            $current.$leaf = $value
+          } else {
+            $current | Add-Member -NotePropertyName $leaf -NotePropertyValue $value
+          }
+
+          $json | ConvertTo-Json -Depth 10 | Set-Content $configPath -Encoding UTF8
+          Write-Host "Updated $path in $configPath"
+
+      - name: Restart App Pool
+        shell: powershell
+        run: |
+          Import-Module WebAdministration
+          $pool = "FuntimeShared"
+          if (Get-ChildItem "IIS:\AppPools\$pool" -ErrorAction SilentlyContinue) {
+            Restart-WebAppPool -Name $pool
+            Write-Host "Restarted app pool: $pool"
+          } else {
+            Write-Host "App pool '$pool' not found — skipping restart"
+          }
