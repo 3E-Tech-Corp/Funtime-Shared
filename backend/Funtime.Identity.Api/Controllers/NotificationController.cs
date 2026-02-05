@@ -502,11 +502,17 @@ public class NotificationController : ControllerBase
 
             // Send test notification via FXNotification API
             var client = _httpClientFactory.CreateClient("FXNotification");
+            var bodyObj = new
+            {
+                SUBJECT = $"Test: {task.TaskCode}",
+                BODY = $"This is a test notification from the admin dashboard for task [{task.TaskCode}].",
+                test = true
+            };
             var payload = new
             {
                 taskId = taskId,
                 to = request.Recipient,
-                bodyJson = "{\"test\": true, \"message\": \"Test notification from admin dashboard\"}",
+                bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj),
                 priority = "H"
             };
 
