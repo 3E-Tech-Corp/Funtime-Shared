@@ -504,8 +504,8 @@ public class NotificationController : ControllerBase
             var client = _httpClientFactory.CreateClient("FXNotification");
             var bodyObj = new
             {
-                SUBJECT = $"Test: {task.TaskCode}",
-                BODY = $"This is a test notification from the admin dashboard for task [{task.TaskCode}].",
+                SUBJECT = request.Subject ?? $"Test: {task.TaskCode}",
+                BODY = request.Body ?? $"This is a test notification for task [{task.TaskCode}].",
                 test = true
             };
             var payload = new
@@ -845,6 +845,8 @@ public class NotificationController : ControllerBase
 public class TestSendRequest
 {
     public string Recipient { get; set; } = string.Empty;
+    public string? Subject { get; set; }
+    public string? Body { get; set; }
 }
 
 public class LookupItem

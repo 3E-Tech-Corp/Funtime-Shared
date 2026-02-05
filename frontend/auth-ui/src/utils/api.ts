@@ -1177,11 +1177,11 @@ export const notificationApi = {
     });
   },
 
-  async testSendTask(taskId: number, recipient: string): Promise<{ message: string }> {
+  async testSendTask(taskId: number, recipient: string, subject?: string, body?: string): Promise<{ message: string }> {
     return request(`/admin/notifications/tasks/${taskId}/test-send`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ recipient }),
+      body: JSON.stringify({ recipient, subject, body }),
     });
   },
 

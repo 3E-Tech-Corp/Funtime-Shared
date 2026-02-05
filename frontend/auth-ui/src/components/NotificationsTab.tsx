@@ -66,6 +66,8 @@ export function NotificationsTab() {
   // Test send state
   const [testingTask, setTestingTask] = useState<TaskRow | null>(null);
   const [testRecipient, setTestRecipient] = useState('');
+  const [testSubject, setTestSubject] = useState('');
+  const [testBody, setTestBody] = useState('');
   const [testSending, setTestSending] = useState(false);
   const [testResult, setTestResult] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
@@ -339,10 +341,13 @@ export function NotificationsTab() {
   // Test send handler
   const handleTestSend = async () => {
     if (!testingTask?.task_ID || !testRecipient.trim()) return;
+    const isSms = testingTask.taskType?.toUpperCase().startsWith('T');
+    if (!isSms && !testSubject.trim()) { setTestResult({ type: 'error', message: 'Subject is required' }); return; }
+    if (!testBody.trim()) { setTestResult({ type: 'error', message: isSms ? 'Message is required' : 'Body is required' }); return; }
     setTestSending(true);
     setTestResult(null);
     try {
-      const result = await notificationApi.testSendTask(testingTask.task_ID, testRecipient.trim());
+      const result = await notificationApi.testSendTask(testingTask.task_ID, testRecipient.trim(), testSubject.trim() || undefined, testBody.trim());
       setTestResult({ type: 'success', message: result.message || 'Test notification queued successfully' });
       setTimeout(() => {
         setTestResult(null);
@@ -745,7 +750,7 @@ export function NotificationsTab() {
                        task.status?.toUpperCase().startsWith('I') ? 'Inactive' : task.status}
                     </span>
                     <button
-                      onClick={() => { setTestingTask(task); setTestRecipient(''); setTestResult(null); }}
+                      onClick={() => { setTestingTask(task); setTestRecipient(''); setTestSubject(''); setTestBody(''); setTestResult(null); }}
                       className="p-1 hover:bg-gray-100 rounded"
                       title="Send Test"
                     >
@@ -1478,18 +1483,22 @@ export function NotificationsTab() {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full m-4">
             <div className="p-4 border-b flex items-center justify-between">
               <h3 className="font-semibold">Send Test Notification</h3>
-              <button onClick={() => { setTestingTask(null); setTestRecipient(''); setTestResult(null); }}>
+              <button onClick={() => { setTestingTask(null); setTestRecipient(''); setTestSubject(''); setTestBody(''); setTestResult(null); }}>
                 <X className="w-5 h-5" />
               </button>
             </div>
             <div className="p-4 space-y-4">
-              <div>
-                <p className="text-sm text-gray-500">Task</p>
-                <p className="font-medium">{testingTask.taskCode}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500">Type</p>
-                <p className="font-medium">{testingTask.taskType?.toUpperCase().startsWith('T') ? 'SMS / Text' : 'Email'}</p>
+              <div className="flex items-center gap-3">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-500">Task</p>
+                  <p className="font-medium">{testingTask.taskCode}</p>
+                </div>
+                <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                  testingTask.taskType?.toUpperCase().startsWith('T')
+                    ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'
+                }`}>
+                  {testingTask.taskType?.toUpperCase().startsWith('T') ? '📱 SMS' : '✉️ Email'}
+                </span>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
@@ -1499,10 +1508,37 @@ export function NotificationsTab() {
                   type={testingTask.taskType?.toUpperCase().startsWith('T') ? 'tel' : 'email'}
                   value={testRecipient}
                   onChange={(e) => setTestRecipient(e.target.value)}
-                  placeholder={testingTask.taskType?.toUpperCase().startsWith('T') ? 'Enter phone number' : 'Enter email address'}
+                  placeholder={testingTask.taskType?.toUpperCase().startsWith('T') ? 'e.g. 5551234567' : 'e.g. test@example.com'}
                   className="w-full px-3 py-2 border rounded-lg"
                   disabled={testSending}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleTestSend(); }}
+                />
+              </div>
+              {!testingTask.taskType?.toUpperCase().startsWith('T') && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Subject</label>
+                  <input
+                    type="text"
+                    value={testSubject}
+                    onChange={(e) => setTestSubject(e.target.value)}
+                    placeholder="Test email subject"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    disabled={testSending}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {testingTask.taskType?.toUpperCase().startsWith('T') ? 'Message' : 'Body'}
+                </label>
+                <textarea
+                  value={testBody}
+                  onChange={(e) => setTestBody(e.target.value)}
+                  placeholder={testingTask.taskType?.toUpperCase().startsWith('T')
+                    ? 'Enter SMS message text'
+                    : 'Enter email body (HTML supported)'}
+                  className="w-full px-3 py-2 border rounded-lg"
+                  rows={testingTask.taskType?.toUpperCase().startsWith('T') ? 3 : 5}
+                  disabled={testSending}
                 />
               </div>
               {testResult && (
@@ -1517,7 +1553,7 @@ export function NotificationsTab() {
             </div>
             <div className="p-4 border-t flex justify-end gap-2">
               <button
-                onClick={() => { setTestingTask(null); setTestRecipient(''); setTestResult(null); }}
+                onClick={() => { setTestingTask(null); setTestRecipient(''); setTestSubject(''); setTestBody(''); setTestResult(null); }}
                 className="px-4 py-2 border rounded-lg"
                 disabled={testSending}
               >
