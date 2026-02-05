@@ -480,6 +480,26 @@ public class OAuthController : ControllerBase
         return JsonSerializer.Deserialize<JsonElement>(bytes);
     }
 
+    private static (string? firstName, string? lastName) ParseName(string? fullName)
+    {
+        if (string.IsNullOrWhiteSpace(fullName))
+            return (null, null);
+
+        var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        
+        if (parts.Length == 0)
+            return (null, null);
+        
+        if (parts.Length == 1)
+            return (parts[0], null);
+        
+        // First part is first name, rest is last name
+        var firstName = parts[0];
+        var lastName = string.Join(" ", parts.Skip(1));
+        
+        return (firstName, lastName);
+    }
+
     private async Task<(User user, bool isNewUser)> FindOrCreateUser(
         string provider, OAuthUserInfo userInfo)
     {
@@ -514,10 +534,15 @@ public class OAuthController : ControllerBase
 
         if (user == null)
         {
+            // Parse name into first/last (Google returns full name like "John Doe")
+            var (firstName, lastName) = ParseName(userInfo.Name);
+            
             // Create new user
             user = new User
             {
                 Email = userInfo.Email?.ToLower(),
+                FirstName = firstName,
+                LastName = lastName,
                 IsEmailVerified = !string.IsNullOrEmpty(userInfo.Email), // OAuth emails are verified
                 CreatedAt = DateTime.UtcNow,
                 LastLoginAt = DateTime.UtcNow
