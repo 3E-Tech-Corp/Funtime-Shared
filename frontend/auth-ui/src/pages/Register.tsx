@@ -20,6 +20,8 @@ export function RegisterPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
 
   // Phone registration state
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -89,7 +91,7 @@ export function RegisterPage() {
     setError(null);
 
     try {
-      const response = await authApi.register(email, password);
+      const response = await authApi.register(email, password, firstName, lastName);
       if (response.success && response.token) {
         redirectWithToken(response.token);
       } else {
@@ -199,6 +201,37 @@ export function RegisterPage() {
           {/* Email Registration Form */}
           {mode === 'email' && (
             <form onSubmit={handleEmailRegister} className="space-y-5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('register.firstName')}
+                  </label>
+                  <input
+                    type="text"
+                    id="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    required
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    placeholder={t('register.firstName')}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                    {t('register.lastName')}
+                  </label>
+                  <input
+                    type="text"
+                    id="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    required
+                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-primary-500 focus:border-primary-500 transition-colors"
+                    placeholder={t('register.lastName')}
+                  />
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
                   {t('auth.emailAddress')}

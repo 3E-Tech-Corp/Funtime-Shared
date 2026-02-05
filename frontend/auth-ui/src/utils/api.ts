@@ -93,10 +93,10 @@ export const authApi = {
   },
 
   // Register new user
-  async register(email: string, password: string): Promise<AuthResponse> {
+  async register(email: string, password: string, firstName: string, lastName: string): Promise<AuthResponse> {
     return request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ email, password, firstName, lastName }),
     });
   },
 
