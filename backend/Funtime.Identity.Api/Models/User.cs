@@ -16,6 +16,12 @@ public class User
     [MaxLength(20)]
     public string? PhoneNumber { get; set; }
 
+    [MaxLength(100)]
+    public string FirstName { get; set; } = string.Empty;
+
+    [MaxLength(100)]
+    public string LastName { get; set; } = string.Empty;
+
     /// <summary>
     /// System role: "SU" for super admin, null for regular users
     /// </summary>
