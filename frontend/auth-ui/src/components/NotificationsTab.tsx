@@ -712,7 +712,11 @@ export function NotificationsTab() {
             <div className="p-4 border-b border-gray-200 flex items-center justify-between">
               <h3 className="font-semibold">Tasks</h3>
               <button
-                onClick={() => setEditingTask({ taskType: 'Email', status: 'Active', langCode: 'en' })}
+                onClick={() => {
+                  if (templates.length === 0) notificationApi.getTemplates().then(setTemplates).catch(() => {});
+                  if (profiles.length === 0) notificationApi.getProfiles().then(setProfiles).catch(() => {});
+                  setEditingTask({ taskType: 'E', status: 'A', langCode: 'en' });
+                }}
                 className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700"
               >
                 <Plus className="w-4 h-4" /> Add Task
@@ -724,7 +728,7 @@ export function NotificationsTab() {
                   <div>
                     <p className="font-medium"><span className="text-gray-400 text-sm mr-2">#{task.task_ID}</span>{task.taskCode}</p>
                     <p className="text-sm text-gray-500">
-                      {task.taskType} - {task.mailTo || task.mailFrom || '(no recipients)'}
+                      {task.taskType?.toUpperCase().startsWith('T') ? '📱 SMS' : '✉️ Email'} - {task.mailTo || task.mailFrom || '(no recipients)'}
                     </p>
                     {task.testMailTo && (
                       <p className="text-sm text-gray-400">Test: {task.testMailTo}</p>
@@ -732,11 +736,13 @@ export function NotificationsTab() {
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      task.status === 'Active' ? 'bg-green-100 text-green-700' :
-                      task.status === 'Testing' ? 'bg-yellow-100 text-yellow-700' :
+                      task.status?.toUpperCase().startsWith('A') ? 'bg-green-100 text-green-700' :
+                      task.status?.toUpperCase().startsWith('T') ? 'bg-yellow-100 text-yellow-700' :
                       'bg-gray-100 text-gray-600'
                     }`}>
-                      {task.status}
+                      {task.status?.toUpperCase().startsWith('A') ? 'Active' :
+                       task.status?.toUpperCase().startsWith('T') ? 'Testing' :
+                       task.status?.toUpperCase().startsWith('I') ? 'Inactive' : task.status}
                     </span>
                     <button
                       onClick={() => { setTestingTask(task); setTestRecipient(''); setTestResult(null); }}
@@ -745,7 +751,12 @@ export function NotificationsTab() {
                     >
                       <Send className="w-4 h-4 text-blue-500" />
                     </button>
-                    <button onClick={() => setEditingTask(task)} className="p-1 hover:bg-gray-100 rounded">
+                    <button onClick={() => {
+                      // Ensure templates and profiles are loaded for the dropdowns
+                      if (templates.length === 0) notificationApi.getTemplates().then(setTemplates).catch(() => {});
+                      if (profiles.length === 0) notificationApi.getProfiles().then(setProfiles).catch(() => {});
+                      setEditingTask(task);
+                    }} className="p-1 hover:bg-gray-100 rounded">
                       <Edit2 className="w-4 h-4 text-gray-500" />
                     </button>
                   </div>
@@ -1478,17 +1489,17 @@ export function NotificationsTab() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Type</p>
-                <p className="font-medium">{testingTask.taskType === 'SMS' ? 'SMS' : 'Email'}</p>
+                <p className="font-medium">{testingTask.taskType?.toUpperCase().startsWith('T') ? 'SMS / Text' : 'Email'}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">
-                  {testingTask.taskType === 'SMS' ? 'Phone Number' : 'Email Address'}
+                  {testingTask.taskType?.toUpperCase().startsWith('T') ? 'Phone Number' : 'Email Address'}
                 </label>
                 <input
-                  type={testingTask.taskType === 'SMS' ? 'tel' : 'email'}
+                  type={testingTask.taskType?.toUpperCase().startsWith('T') ? 'tel' : 'email'}
                   value={testRecipient}
                   onChange={(e) => setTestRecipient(e.target.value)}
-                  placeholder={testingTask.taskType === 'SMS' ? 'Enter phone number' : 'Enter email address'}
+                  placeholder={testingTask.taskType?.toUpperCase().startsWith('T') ? 'Enter phone number' : 'Enter email address'}
                   className="w-full px-3 py-2 border rounded-lg"
                   disabled={testSending}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleTestSend(); }}
