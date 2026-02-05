@@ -79,6 +79,9 @@ public class OAuthController : ControllerBase
         [FromQuery] string? returnUrl,
         [FromQuery] string? site)
     {
+        _logger.LogInformation("OAuth start - Provider: {Provider}, ReturnUrl: {ReturnUrl}, Site: {Site}",
+            provider, returnUrl ?? "(null)", site ?? "(null)");
+            
         var baseUrl = $"{Request.Scheme}://{Request.Host}{Request.PathBase}";
         var callbackUrl = $"{baseUrl}/auth/oauth/{provider}/callback";
 
@@ -189,11 +192,17 @@ public class OAuthController : ControllerBase
             {
                 oauthState = JsonSerializer.Deserialize<OAuthState>(
                     Convert.FromBase64String(state));
+                _logger.LogInformation("OAuth state parsed - ReturnUrl: {ReturnUrl}, SiteKey: {SiteKey}", 
+                    oauthState?.ReturnUrl ?? "(null)", oauthState?.SiteKey ?? "(null)");
             }
-            catch
+            catch (Exception ex)
             {
-                _logger.LogWarning("Failed to parse OAuth state");
+                _logger.LogWarning(ex, "Failed to parse OAuth state: {State}", state);
             }
+        }
+        else
+        {
+            _logger.LogWarning("OAuth callback received with empty state");
         }
 
         try
