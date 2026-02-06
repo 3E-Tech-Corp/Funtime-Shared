@@ -575,6 +575,18 @@ public class OAuthController : ControllerBase
             {
                 user.IsEmailVerified = true;
             }
+            // Update name if user doesn't have one and provider has it
+            if (string.IsNullOrEmpty(user.FirstName))
+            {
+                var firstName = userInfo.FirstName;
+                var lastName = userInfo.LastName;
+                if (string.IsNullOrEmpty(firstName) && !string.IsNullOrEmpty(userInfo.Name))
+                {
+                    (firstName, lastName) = ParseName(userInfo.Name);
+                }
+                user.FirstName = firstName ?? string.Empty;
+                user.LastName = lastName ?? string.Empty;
+            }
             // Update avatar if user doesn't have one and provider has it
             if (string.IsNullOrEmpty(user.AvatarUrl) && !string.IsNullOrEmpty(userInfo.PictureUrl))
             {
