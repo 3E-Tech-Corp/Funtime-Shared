@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { authApi, settingsApi } from '../utils/api';
 import type { OAuthProvider } from '../utils/api';
 import { redirectWithToken, getSiteDisplayName, getSiteKey, getReturnTo, getRedirectUrl } from '../utils/redirect';
+import { getCurrentUser } from '../utils/api';
 import { SiteLogoOverlay } from '../components/SiteLogoOverlay';
 
 type AuthMode = 'email' | 'phone';
@@ -50,6 +51,9 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
 
+  // SSO: Check for existing session before showing login form
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
+
   // Email login state
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -73,6 +77,26 @@ export function LoginPage() {
   const [mainLogoUrl, setMainLogoUrl] = useState<string | null>(null);
   const [siteLogoUrl, setSiteLogoUrl] = useState<string | null>(null);
   const [foundSiteName, setFoundSiteName] = useState<string | null>(null);
+
+  // SSO: Check for existing session on mount
+  // If user is already logged in at shared auth, auto-redirect them back
+  useEffect(() => {
+    // Only auto-redirect if coming from another site (has redirectUrl)
+    if (redirectUrl) {
+      const existingToken = localStorage.getItem('auth_token');
+      const user = getCurrentUser(); // Decodes JWT and checks expiry
+      
+      if (existingToken && user) {
+        // Token is valid and not expired - auto-redirect to requesting site
+        console.log('SSO: Existing session found, auto-redirecting to', redirectUrl);
+        // The target site will sync the user and determine site-specific role
+        redirectWithToken(existingToken, {});
+        return; // Don't set isCheckingSession to false - we're redirecting
+      }
+    }
+    
+    setIsCheckingSession(false);
+  }, [redirectUrl]);
 
   useEffect(() => {
     loadLogos();
@@ -283,6 +307,18 @@ export function LoginPage() {
     setOtpCode('');
     setOtpSent(false);
   };
+
+  // Show loading state while checking for existing session (SSO)
+  if (isCheckingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-600 mx-auto mb-4" />
+          <p className="text-gray-600">{t('auth.checkingSession', 'Checking session...')}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100 px-4 py-12">
