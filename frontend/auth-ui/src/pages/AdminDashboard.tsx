@@ -4,6 +4,7 @@ import { adminApi, assetApi, settingsApi, getCurrentUser } from '../utils/api';
 import type { Site, AdminUser, AdminUserDetail, AdminPayment, AdminStats, AssetUploadResponse, AdminPaymentMethod, UserSiteInfo } from '../utils/api';
 import { AssetUploadModal } from '../components/AssetUploadModal';
 import { NotificationsTab } from '../components/NotificationsTab';
+import { NotificationPipelineTab } from '../components/NotificationPipelineTab';
 import { PushTestTab } from '../components/PushTestTab';
 import { FileTypesTab } from '../components/FileTypesTab';
 import { ApiKeysTab } from '../components/ApiKeysTab';
@@ -15,7 +16,7 @@ import { config } from '../utils/config';
 // Stripe publishable key from runtime config
 const STRIPE_PUBLISHABLE_KEY = config.STRIPE_PUBLISHABLE_KEY;
 
-type Tab = 'overview' | 'sites' | 'users' | 'payments' | 'notifications' | 'push' | 'filetypes' | 'apikeys' | 'settings';
+type Tab = 'overview' | 'sites' | 'users' | 'payments' | 'notifications' | 'pipeline' | 'push' | 'filetypes' | 'apikeys' | 'settings';
 
 export function AdminDashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -565,6 +566,17 @@ export function AdminDashboardPage() {
           >
             <Bell className="w-4 h-4" />
             Notifications
+          </button>
+          <button
+            onClick={() => setActiveTab('pipeline')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'pipeline'
+                ? 'bg-primary-500 text-white'
+                : 'bg-white text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            <Send className="w-4 h-4" />
+            Pipeline
           </button>
           <button
             onClick={() => setActiveTab('push')}
@@ -1367,6 +1379,9 @@ export function AdminDashboardPage() {
 
         {/* Notifications Tab */}
         {activeTab === 'notifications' && <NotificationsTab />}
+
+        {/* Notification Pipeline Tab */}
+        {activeTab === 'pipeline' && <NotificationPipelineTab />}
 
         {/* Push Test Tab */}
         {activeTab === 'push' && <PushTestTab />}
