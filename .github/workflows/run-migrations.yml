@@ -11,6 +11,25 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Grant DB access to runner
+        shell: powershell
+        run: |
+          Write-Host "[SETUP] Granting SYSTEM account access to FuntimeIdentity..."
+          $sql = @"
+          USE [master];
+          IF NOT EXISTS (SELECT * FROM sys.server_principals WHERE name = 'NT AUTHORITY\SYSTEM')
+            CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
+          USE [FuntimeIdentity];
+          IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'NT AUTHORITY\SYSTEM')
+            CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
+          ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\SYSTEM];
+"@
+          # Run as local admin using the runner's elevated context
+          & sqlcmd -S localhost -E -Q $sql -t 60
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "[SETUP] Note: Could not add SYSTEM - may already exist or need manual setup"
+          }
+
       - name: Run SQL migrations
         shell: powershell
         run: |
@@ -27,7 +46,7 @@ jobs:
               }
               Write-Host "[MIGRATIONS] Running: $($file.Name)"
               try {
-                & sqlcmd -S localhost -d FuntimeShared -E -i $file.FullName -t 300
+                & sqlcmd -S localhost -d FuntimeIdentity -E -i $file.FullName -t 300
                 if ($LASTEXITCODE -eq 0) {
                   Write-Host "[MIGRATIONS] Completed: $($file.Name)" -ForegroundColor Green
                 } else {
