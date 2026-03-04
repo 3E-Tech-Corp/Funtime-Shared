@@ -80,6 +80,19 @@ builder.Services.AddHttpClient("FXNotification", client =>
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<INotificationService, NotificationService>();
 
+// Notification Pipeline Service
+builder.Services.AddHttpClient<IFxNotificationClient, FxNotificationClient>((sp, client) =>
+{
+    var config = sp.GetRequiredService<IConfiguration>();
+    var baseUrl = config["FXNotification:BaseUrl"];
+    if (!string.IsNullOrEmpty(baseUrl))
+        client.BaseAddress = new Uri(baseUrl.TrimEnd('/') + "/");
+    var apiKey = config["FXNotification:ApiKey"];
+    if (!string.IsNullOrEmpty(apiKey))
+        client.DefaultRequestHeaders.Add("X-API-Key", apiKey);
+});
+builder.Services.AddScoped<INotificationPipelineService, NotificationPipelineService>();
+
 // File Storage - configurable between local and S3
 var storageType = builder.Configuration["Storage:Type"] ?? "local";
 if (storageType.Equals("s3", StringComparison.OrdinalIgnoreCase))

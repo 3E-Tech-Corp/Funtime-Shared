@@ -161,6 +161,11 @@ public static class ApiScopes
     // Push notification scopes
     public const string PushSend = "push:send";
 
+    // Notification pipeline scopes
+    public const string NotificationsSend = "notifications:send";
+    public const string NotificationsRead = "notifications:read";
+    public const string NotificationsManage = "notifications:manage";
+
     // Admin scope (full access)
     public const string Admin = "admin";
 
@@ -174,6 +179,7 @@ public static class ApiScopes
         AssetsRead, AssetsWrite,
         SitesRead,
         PushSend,
+        NotificationsSend, NotificationsRead, NotificationsManage,
         Admin
     };
 }

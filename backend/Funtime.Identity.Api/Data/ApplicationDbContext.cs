@@ -35,6 +35,13 @@ public class ApplicationDbContext : DbContext
     // Settings tables
     public DbSet<Setting> Settings { get; set; }
 
+    // Notification pipeline tables
+    public DbSet<NotificationType> NotificationTypes { get; set; }
+    public DbSet<NotificationTemplate> NotificationTemplates { get; set; }
+    public DbSet<NotificationQueueItem> NotificationQueue { get; set; }
+    public DbSet<ModerationRule> ModerationRules { get; set; }
+    public DbSet<ChannelConfig> ChannelConfigs { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -130,6 +137,42 @@ public class ApplicationDbContext : DbContext
         modelBuilder.Entity<Setting>(entity =>
         {
             entity.HasIndex(e => e.Key).IsUnique();
+        });
+
+        // NotificationType configuration
+        modelBuilder.Entity<NotificationType>(entity =>
+        {
+            entity.ToTable("NotificationTypes");
+            entity.HasIndex(e => e.Code).IsUnique();
+        });
+
+        // NotificationTemplate configuration
+        modelBuilder.Entity<NotificationTemplate>(entity =>
+        {
+            entity.ToTable("NotificationTemplates");
+            entity.HasIndex(e => new { e.SiteKey, e.TypeCode, e.ChannelCode, e.LangCode }).IsUnique();
+        });
+
+        // NotificationQueueItem configuration
+        modelBuilder.Entity<NotificationQueueItem>(entity =>
+        {
+            entity.ToTable("NotificationQueue");
+            entity.HasIndex(e => new { e.Status, e.Priority, e.CreatedAt });
+            entity.HasIndex(e => new { e.SiteKey, e.TypeCode, e.CreatedAt });
+            entity.HasIndex(e => new { e.UserId, e.CreatedAt });
+        });
+
+        // ModerationRule configuration
+        modelBuilder.Entity<ModerationRule>(entity =>
+        {
+            entity.ToTable("ModerationRules");
+        });
+
+        // ChannelConfig configuration
+        modelBuilder.Entity<ChannelConfig>(entity =>
+        {
+            entity.ToTable("ChannelConfigs");
+            entity.HasIndex(e => new { e.SiteKey, e.ChannelCode }).IsUnique();
         });
     }
 }

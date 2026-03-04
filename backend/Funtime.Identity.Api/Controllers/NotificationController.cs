@@ -1,889 +1,390 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.SqlClient;
-using Dapper;
+using Microsoft.EntityFrameworkCore;
+using Funtime.Identity.Api.Auth;
+using Funtime.Identity.Api.Data;
 using Funtime.Identity.Api.Models;
+using Funtime.Identity.Api.Services;
 
 namespace Funtime.Identity.Api.Controllers;
 
 [ApiController]
-[Route("admin/notifications")]
-[Authorize(Roles = "SU")]
+[Route("api/notifications")]
 public class NotificationController : ControllerBase
 {
-    private readonly IConfiguration _configuration;
+    private readonly ApplicationDbContext _context;
+    private readonly INotificationPipelineService _notificationService;
     private readonly ILogger<NotificationController> _logger;
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly string _connectionString;
 
-    public NotificationController(IConfiguration configuration, ILogger<NotificationController> logger, IHttpClientFactory httpClientFactory)
+    public NotificationController(
+        ApplicationDbContext context,
+        INotificationPipelineService notificationService,
+        ILogger<NotificationController> logger)
     {
-        _configuration = configuration;
+        _context = context;
+        _notificationService = notificationService;
         _logger = logger;
-        _httpClientFactory = httpClientFactory;
-        _connectionString = configuration.GetConnectionString("NotificationConnection")
-            ?? throw new InvalidOperationException("NotificationConnection not configured");
     }
 
-    private SqlConnection CreateConnection() => new SqlConnection(_connectionString);
+    // ========================================================================
+    // Sending Notifications (for sites)
+    // ========================================================================
 
-    #region Mail Profiles
-
-    [HttpGet("profiles")]
-    public async Task<ActionResult<List<MailProfileRow>>> GetMailProfiles()
+    /// <summary>
+    /// Send a notification - called by partner sites
+    /// Requires API key with notifications:send scope
+    /// </summary>
+    [HttpPost("send")]
+    [ApiKeyAuthorize(ApiScopes.NotificationsSend)]
+    public async Task<ActionResult<SendNotificationResponse>> Send([FromBody] SendNotificationRequest request)
     {
-        try
+        // Get siteKey from API key context
+        var siteKey = HttpContext.Items["SiteKey"]?.ToString();
+        if (string.IsNullOrEmpty(siteKey))
         {
-            using var conn = CreateConnection();
-            var profiles = await conn.QueryAsync<MailProfileRow>("exec dbo.csp_Profiles_Get");
-            return profiles.ToList();
+            return BadRequest(new SendNotificationResponse 
+            { 
+                Success = false, 
+                Message = "API key must be associated with a site" 
+            });
         }
-        catch (Exception ex)
+
+        if (string.IsNullOrEmpty(request.Type))
         {
-            _logger.LogError(ex, "Failed to get mail profiles");
-            return StatusCode(500, new { message = $"Failed to get mail profiles: {ex.Message}" });
+            return BadRequest(new SendNotificationResponse 
+            { 
+                Success = false, 
+                Message = "Notification type is required" 
+            });
         }
+
+        if (request.UserId == null && request.Recipient == null)
+        {
+            return BadRequest(new SendNotificationResponse 
+            { 
+                Success = false, 
+                Message = "Either userId or recipient info is required" 
+            });
+        }
+
+        var response = await _notificationService.SendAsync(siteKey, request);
+        return Ok(response);
     }
 
-    [HttpPost("profiles")]
-    public async Task<ActionResult<MailProfileRow>> CreateMailProfile([FromBody] MailProfileRow profile)
+    // ========================================================================
+    // Queue Management (for admins)
+    // ========================================================================
+
+    /// <summary>
+    /// Get notification queue with filters
+    /// </summary>
+    [HttpGet("queue")]
+    [Authorize]
+    public async Task<ActionResult<NotificationQueueResponse>> GetQueue(
+        [FromQuery] string? siteKey,
+        [FromQuery] string? status,
+        [FromQuery] string? typeCode,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
-        try
+        // Check if user is SU or site admin
+        var user = await GetCurrentUserAsync();
+        if (user == null) return Unauthorized();
+
+        // Non-SU users can only see their site's notifications
+        if (user.SystemRole != "SU" && !string.IsNullOrEmpty(siteKey))
         {
-            using var conn = CreateConnection();
-            var result = await conn.QuerySingleOrDefaultAsync<MailProfileRow>(
-                "exec dbo.csp_MailProfile_AddNew @ProfileCode, @App_ID, @FromName, @FromEmail, @SmtpHost, @SmtpPort, @AuthUser, @AuthSecretRef, @SecurityMode, @IsActive",
-                new
-                {
-                    profile.ProfileCode,
-                    profile.App_ID,
-                    profile.FromName,
-                    profile.FromEmail,
-                    profile.SmtpHost,
-                    profile.SmtpPort,
-                    profile.AuthUser,
-                    profile.AuthSecretRef,
-                    profile.SecurityMode,
-                    profile.IsActive
-                });
-            _logger.LogInformation("Mail profile {ProfileCode} created", profile.ProfileCode);
-            return result ?? profile;
+            // TODO: Check if user is admin for this site
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create mail profile");
-            return StatusCode(500, new { message = "Failed to create mail profile" });
-        }
+
+        var response = await _notificationService.GetQueueAsync(siteKey, status, typeCode, page, pageSize);
+        return Ok(response);
     }
 
-    [HttpPut("profiles/{id}")]
-    public async Task<ActionResult<MailProfileRow>> UpdateMailProfile(int id, [FromBody] MailProfileRow profile)
+    /// <summary>
+    /// Get a specific notification
+    /// </summary>
+    [HttpGet("{id}")]
+    [Authorize]
+    public async Task<ActionResult<NotificationQueueItem>> GetById(long id)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync(
-                "exec dbo.csp_MailProfile_Update @ProfileId, @ProfileCode, @App_ID, @FromName, @FromEmail, @SmtpHost, @SmtpPort, @AuthUser, @AuthSecretRef, @SecurityMode, @IsActive",
-                new
-                {
-                    ProfileId = id,
-                    profile.ProfileCode,
-                    profile.App_ID,
-                    profile.FromName,
-                    profile.FromEmail,
-                    profile.SmtpHost,
-                    profile.SmtpPort,
-                    profile.AuthUser,
-                    profile.AuthSecretRef,
-                    profile.SecurityMode,
-                    profile.IsActive
-                });
-            _logger.LogInformation("Mail profile {Id} updated", id);
-            profile.ProfileId = id;
-            return profile;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update mail profile {Id}", id);
-            return StatusCode(500, new { message = "Failed to update mail profile" });
-        }
+        var item = await _notificationService.GetByIdAsync(id);
+        if (item == null) return NotFound();
+        return Ok(item);
     }
 
-    #endregion
-
-    #region Applications
-
-    private static string GenerateApiKey()
+    /// <summary>
+    /// Approve a held notification
+    /// </summary>
+    [HttpPost("{id}/approve")]
+    [Authorize]
+    public async Task<ActionResult> Approve(long id, [FromBody] ModerateRequest? request)
     {
-        var bytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
-        return "fxn_" + Convert.ToHexString(bytes).ToLowerInvariant();
+        var user = await GetCurrentUserAsync();
+        if (user == null) return Unauthorized();
+
+        var success = await _notificationService.ApproveAsync(id, user.Id, request?.Note);
+        if (!success) return NotFound("Notification not found or not in Held status");
+
+        return Ok(new { success = true, message = "Notification approved and sent" });
     }
 
-    [HttpGet("apps")]
-    public async Task<ActionResult<List<AppResponseDto>>> GetApps()
+    /// <summary>
+    /// Reject a held notification
+    /// </summary>
+    [HttpPost("{id}/reject")]
+    [Authorize]
+    public async Task<ActionResult> Reject(long id, [FromBody] ModerateRequest? request)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var apps = await conn.QueryAsync<AppRow>(
-                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
-                  FROM dbo.Apps ORDER BY App_ID");
-            return apps.Select(a => AppResponseDto.FromRow(a)).ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get apps");
-            return StatusCode(500, new { message = "Failed to get applications" });
-        }
+        var user = await GetCurrentUserAsync();
+        if (user == null) return Unauthorized();
+
+        var success = await _notificationService.RejectAsync(id, user.Id, request?.Note);
+        if (!success) return NotFound("Notification not found or not in Held status");
+
+        return Ok(new { success = true, message = "Notification rejected" });
     }
 
-    [HttpPost("apps")]
-    public async Task<ActionResult<AppResponseDto>> CreateApp([FromBody] AppRow app)
+    /// <summary>
+    /// Retry a failed notification
+    /// </summary>
+    [HttpPost("{id}/retry")]
+    [Authorize]
+    public async Task<ActionResult> Retry(long id)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var newKey = GenerateApiKey();
-            var id = await conn.QuerySingleAsync<int>(
-                @"INSERT INTO dbo.Apps (App_Code, Descr, ProfileID, ApiKey, IsActive, CreatedAt, RequestCount, Notes)
-                  OUTPUT INSERTED.App_ID
-                  VALUES (@App_Code, @Descr, @ProfileID, @ApiKey, 1, GETUTCDATE(), 0, @Notes)",
-                new { app.App_Code, app.Descr, app.ProfileID, ApiKey = newKey, app.Notes });
-            _logger.LogInformation("App {AppCode} created with ID {Id}", app.App_Code, id);
+        var success = await _notificationService.RetryAsync(id);
+        if (!success) return NotFound("Notification not found or not in Failed status");
 
-            var created = await conn.QueryFirstAsync<AppRow>(
-                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
-                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
-            return AppResponseDto.FromRow(created, newKey);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create app");
-            return StatusCode(500, new { message = "Failed to create application" });
-        }
+        return Ok(new { success = true, message = "Notification queued for retry" });
     }
 
-    [HttpPut("apps/{id}")]
-    public async Task<ActionResult<AppResponseDto>> UpdateApp(int id, [FromBody] AppRow app)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync(
-                @"UPDATE dbo.Apps SET App_Code = @App_Code, Descr = @Descr, ProfileID = @ProfileID, Notes = @Notes
-                  WHERE App_ID = @App_ID",
-                new { App_ID = id, app.App_Code, app.Descr, app.ProfileID, app.Notes });
-            _logger.LogInformation("App {Id} updated", id);
+    // ========================================================================
+    // Template Management
+    // ========================================================================
 
-            var updated = await conn.QueryFirstAsync<AppRow>(
-                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
-                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
-            return AppResponseDto.FromRow(updated);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update app {Id}", id);
-            return StatusCode(500, new { message = "Failed to update application" });
-        }
-    }
-
-    [HttpPost("apps/{id}/toggle")]
-    public async Task<ActionResult<AppResponseDto>> ToggleApp(int id)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync(
-                "UPDATE dbo.Apps SET IsActive = CASE WHEN IsActive = 1 THEN 0 ELSE 1 END WHERE App_ID = @Id",
-                new { Id = id });
-
-            var updated = await conn.QueryFirstOrDefaultAsync<AppRow>(
-                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
-                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
-            if (updated == null) return NotFound(new { message = $"App {id} not found" });
-
-            _logger.LogInformation("App {Id} toggled to {Status}", id, updated.IsActive ? "active" : "inactive");
-            return AppResponseDto.FromRow(updated);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to toggle app {Id}", id);
-            return StatusCode(500, new { message = "Failed to toggle application" });
-        }
-    }
-
-    [HttpPost("apps/{id}/regenerate-key")]
-    public async Task<ActionResult<AppResponseDto>> RegenerateAppKey(int id)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var newKey = GenerateApiKey();
-            var affected = await conn.ExecuteAsync(
-                "UPDATE dbo.Apps SET ApiKey = @ApiKey WHERE App_ID = @Id",
-                new { ApiKey = newKey, Id = id });
-            if (affected == 0) return NotFound(new { message = $"App {id} not found" });
-
-            var updated = await conn.QueryFirstAsync<AppRow>(
-                @"SELECT App_ID, App_Code, Descr, ProfileID, ApiKey, AllowedTasks, IsActive, CreatedAt, LastUsedAt, RequestCount, Notes
-                  FROM dbo.Apps WHERE App_ID = @Id", new { Id = id });
-
-            _logger.LogInformation("App {Id} API key regenerated", id);
-            return AppResponseDto.FromRow(updated, newKey);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to regenerate key for app {Id}", id);
-            return StatusCode(500, new { message = "Failed to regenerate API key" });
-        }
-    }
-
-    [HttpGet("apps/{id}/profiles")]
-    public async Task<ActionResult<List<int>>> GetAppProfiles(int id)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var profileIds = (await conn.QueryAsync<int>(
-                "SELECT ProfileId FROM dbo.AppProfiles WHERE AppId = @AppId",
-                new { AppId = id })).ToList();
-            return profileIds;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get profiles for app {Id}", id);
-            return StatusCode(500, new { message = "Failed to get app profiles" });
-        }
-    }
-
-    [HttpPut("apps/{id}/profiles")]
-    public async Task<ActionResult<List<int>>> UpdateAppProfiles(int id, [FromBody] List<int> profileIds)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.OpenAsync();
-            using var tx = conn.BeginTransaction();
-
-            await conn.ExecuteAsync(
-                "DELETE FROM dbo.AppProfiles WHERE AppId = @AppId",
-                new { AppId = id }, tx);
-
-            foreach (var pid in profileIds)
-            {
-                await conn.ExecuteAsync(
-                    "INSERT INTO dbo.AppProfiles (AppId, ProfileId) VALUES (@AppId, @ProfileId)",
-                    new { AppId = id, ProfileId = pid }, tx);
-            }
-
-            tx.Commit();
-            _logger.LogInformation("App {Id} profiles updated: [{Profiles}]", id, string.Join(", ", profileIds));
-            return profileIds;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update profiles for app {Id}", id);
-            return StatusCode(500, new { message = "Failed to update app profiles" });
-        }
-    }
-
-    [HttpDelete("apps/{id}/key")]
-    public async Task<ActionResult> RevokeAppKey(int id)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var affected = await conn.ExecuteAsync(
-                "UPDATE dbo.Apps SET ApiKey = NULL WHERE App_ID = @Id",
-                new { Id = id });
-            if (affected == 0) return NotFound(new { message = $"App {id} not found" });
-
-            _logger.LogInformation("App {Id} API key revoked", id);
-            return Ok(new { message = "API key revoked" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to revoke key for app {Id}", id);
-            return StatusCode(500, new { message = "Failed to revoke API key" });
-        }
-    }
-
-    #endregion
-
-    #region Templates
-
+    /// <summary>
+    /// List templates for a site
+    /// </summary>
     [HttpGet("templates")]
-    public async Task<ActionResult<List<EmailTemplateRow>>> GetTemplates([FromQuery] int? appId = null)
+    [Authorize]
+    public async Task<ActionResult<List<NotificationTemplate>>> GetTemplates(
+        [FromQuery] string? siteKey,
+        [FromQuery] string? typeCode,
+        [FromQuery] string? channelCode)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var templates = await conn.QueryAsync<EmailTemplateRow>(
-                "exec dbo.csp_Get_Email_Templates @App_ID",
-                new { App_ID = appId });
-            return templates.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get templates");
-            return StatusCode(500, new { message = "Failed to get templates" });
-        }
+        var query = _context.Set<NotificationTemplate>().AsQueryable();
+
+        if (!string.IsNullOrEmpty(siteKey))
+            query = query.Where(t => t.SiteKey == siteKey);
+        if (!string.IsNullOrEmpty(typeCode))
+            query = query.Where(t => t.TypeCode == typeCode);
+        if (!string.IsNullOrEmpty(channelCode))
+            query = query.Where(t => t.ChannelCode == channelCode);
+
+        var templates = await query
+            .OrderBy(t => t.SiteKey)
+            .ThenBy(t => t.TypeCode)
+            .ThenBy(t => t.ChannelCode)
+            .ToListAsync();
+
+        return Ok(templates);
     }
 
+    /// <summary>
+    /// Get a specific template
+    /// </summary>
+    [HttpGet("templates/{id}")]
+    [Authorize]
+    public async Task<ActionResult<NotificationTemplate>> GetTemplate(int id)
+    {
+        var template = await _context.Set<NotificationTemplate>().FindAsync(id);
+        if (template == null) return NotFound();
+        return Ok(template);
+    }
+
+    /// <summary>
+    /// Create a new template
+    /// </summary>
     [HttpPost("templates")]
-    public async Task<ActionResult<EmailTemplateRow>> CreateTemplate([FromBody] EmailTemplateRow template)
+    [Authorize]
+    public async Task<ActionResult<NotificationTemplate>> CreateTemplate([FromBody] TemplateRequest request)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var parameters = new DynamicParameters();
-            parameters.Add("@ET_Code", template.ET_Code ?? "");
-            parameters.Add("@App_ID", template.App_ID ?? 0);
-            parameters.Add("@Lang_Code", template.Lang_Code ?? "en");
-            parameters.Add("@SendFrom", template.SendFrom ?? "");
-            parameters.Add("@SendTo", template.SendTo ?? "");
-            parameters.Add("@BCC", template.BCC ?? "");
-            parameters.Add("@Subject", template.Subject ?? "");
-            parameters.Add("@Body", template.Body ?? "");
+        var user = await GetCurrentUserAsync();
+        if (user == null) return Unauthorized();
 
-            var result = await conn.QuerySingleOrDefaultAsync<EmailTemplateRow>(
-                "exec dbo.csp_Email_Templates_AddNew @ET_Code, @App_ID, @Lang_Code, @SendFrom, @SendTo, @BCC, @Subject, @Body",
-                parameters);
-            _logger.LogInformation("Template {Code} created", template.ET_Code);
-            return result ?? template;
-        }
-        catch (Exception ex)
+        // Check if template already exists
+        var existing = await _context.Set<NotificationTemplate>()
+            .AnyAsync(t => t.SiteKey == request.SiteKey 
+                && t.TypeCode == request.TypeCode 
+                && t.ChannelCode == request.ChannelCode
+                && t.LangCode == request.LangCode);
+
+        if (existing)
         {
-            _logger.LogError(ex, "Failed to create template");
-            return StatusCode(500, new { message = $"Failed to create template: {ex.Message}" });
+            return BadRequest(new { message = "Template already exists for this combination" });
         }
+
+        var template = new NotificationTemplate
+        {
+            SiteKey = request.SiteKey,
+            TypeCode = request.TypeCode,
+            ChannelCode = request.ChannelCode,
+            LangCode = request.LangCode,
+            Subject = request.Subject,
+            BodyHtml = request.BodyHtml,
+            BodyText = request.BodyText,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = user.Id
+        };
+
+        _context.Set<NotificationTemplate>().Add(template);
+        await _context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetTemplate), new { id = template.Id }, template);
     }
 
+    /// <summary>
+    /// Update a template
+    /// </summary>
     [HttpPut("templates/{id}")]
-    public async Task<ActionResult<EmailTemplateRow>> UpdateTemplate(int id, [FromBody] EmailTemplateRow template)
+    [Authorize]
+    public async Task<ActionResult<NotificationTemplate>> UpdateTemplate(int id, [FromBody] TemplateRequest request)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var parameters = new DynamicParameters();
-            parameters.Add("@ET_ID", id);
-            parameters.Add("@ET_Code", template.ET_Code ?? "");
-            parameters.Add("@App_ID", template.App_ID ?? 0);
-            parameters.Add("@Lang_Code", template.Lang_Code ?? "en");
-            parameters.Add("@SendFrom", template.SendFrom ?? "");
-            parameters.Add("@SendTo", template.SendTo ?? "");
-            parameters.Add("@BCC", template.BCC ?? "");
-            parameters.Add("@Subject", template.Subject ?? "");
-            parameters.Add("@Body", template.Body ?? "");
+        var template = await _context.Set<NotificationTemplate>().FindAsync(id);
+        if (template == null) return NotFound();
 
-            await conn.ExecuteAsync(
-                "exec dbo.csp_Email_Templates_Update @ET_ID, @ET_Code, @App_ID, @Lang_Code, @SendFrom, @SendTo, @BCC, @Subject, @Body",
-                parameters);
-            _logger.LogInformation("Template {Id} updated", id);
-            template.ET_ID = id;
-            return template;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update template {Id}", id);
-            return StatusCode(500, new { message = $"Failed to update template: {ex.Message}" });
-        }
+        template.Subject = request.Subject;
+        template.BodyHtml = request.BodyHtml;
+        template.BodyText = request.BodyText;
+        template.Version++;
+        template.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+
+        return Ok(template);
     }
 
-    #endregion
-
-    #region Tasks
-
-    [HttpGet("tasks")]
-    public async Task<ActionResult<List<TaskRow>>> GetTasks([FromQuery] int? appId = null)
+    /// <summary>
+    /// Preview a template with sample data
+    /// </summary>
+    [HttpPost("templates/{id}/preview")]
+    [Authorize]
+    public async Task<ActionResult<TemplatePreviewResponse>> PreviewTemplate(
+        int id, 
+        [FromBody] TemplatePreviewRequest request)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var tasks = await conn.QueryAsync<TaskRow>(
-                "exec dbo.csp_Tasks_Get @App_ID",
-                new { App_ID = appId ?? 0 });
-            return tasks.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get tasks");
-            return StatusCode(500, new { message = "Failed to get tasks" });
-        }
-    }
+        var template = await _context.Set<NotificationTemplate>().FindAsync(id);
+        if (template == null) return NotFound();
 
-    [HttpPost("tasks")]
-    public async Task<ActionResult<TaskRow>> CreateTask([FromBody] TaskRow task)
-    {
-        try
+        var data = request.Data ?? new Dictionary<string, object>();
+        
+        // Simple rendering
+        string? Render(string? text)
         {
-            using var conn = CreateConnection();
-            var parameters = new DynamicParameters();
-            parameters.Add("@TaskCode", task.TaskCode ?? "");
-            parameters.Add("@TaskType", task.TaskType ?? "E");
-            parameters.Add("@App_ID", task.App_ID ?? 0);
-            parameters.Add("@ProfileID", task.ProfileID ?? 0);
-            parameters.Add("@TemplateID", task.TemplateID ?? 0);
-            parameters.Add("@Status", task.Status ?? "A");
-            parameters.Add("@MailPriority", task.MailPriority ?? "N");
-            parameters.Add("@TestMailTo", task.TestMailTo ?? "");
-            parameters.Add("@LangCode", task.LangCode ?? "en");
-            parameters.Add("@MailFromName", task.MailFromName ?? "");
-            parameters.Add("@MailFrom", task.MailFrom ?? "");
-            parameters.Add("@MailTo", task.MailTo ?? "");
-            parameters.Add("@MailCC", task.MailCC ?? "");
-            parameters.Add("@MailBCC", task.MailBCC ?? "");
-            parameters.Add("@AttachmentProcName", task.AttachmentProcName ?? "");
-
-            var result = await conn.QuerySingleOrDefaultAsync<TaskRow>(
-                "exec dbo.csp_Tasks_AddNew @TaskCode, @TaskType, @App_ID, @ProfileID, @TemplateID, @Status, @MailPriority, @TestMailTo, @LangCode, @MailFromName, @MailFrom, @MailTo, @MailCC, @MailBCC, @AttachmentProcName",
-                parameters);
-            _logger.LogInformation("Task {Code} created", task.TaskCode);
-            return result ?? task;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to create task");
-            return StatusCode(500, new { message = $"Failed to create task: {ex.Message}" });
-        }
-    }
-
-    [HttpPut("tasks/{id}")]
-    public async Task<ActionResult<TaskRow>> UpdateTask(int id, [FromBody] TaskRow task)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var parameters = new DynamicParameters();
-            parameters.Add("@Task_ID", id);
-            parameters.Add("@TaskCode", task.TaskCode ?? "");
-            parameters.Add("@TaskType", task.TaskType ?? "E");
-            parameters.Add("@App_ID", task.App_ID ?? 0);
-            parameters.Add("@ProfileID", task.ProfileID ?? 0);
-            parameters.Add("@TemplateID", task.TemplateID ?? 0);
-            parameters.Add("@Status", task.Status ?? "A");
-            parameters.Add("@MailPriority", task.MailPriority ?? "N");
-            parameters.Add("@TestMailTo", task.TestMailTo ?? "");
-            parameters.Add("@LangCode", task.LangCode ?? "en");
-            parameters.Add("@MailFromName", task.MailFromName ?? "");
-            parameters.Add("@MailFrom", task.MailFrom ?? "");
-            parameters.Add("@MailTo", task.MailTo ?? "");
-            parameters.Add("@MailCC", task.MailCC ?? "");
-            parameters.Add("@MailBCC", task.MailBCC ?? "");
-            parameters.Add("@AttachmentProcName", task.AttachmentProcName ?? "");
-
-            await conn.ExecuteAsync("exec dbo.csp_Tasks_Update @Task_ID, @TaskCode, @TaskType, @App_ID, @ProfileID, @TemplateID, @Status, @MailPriority, @TestMailTo, @LangCode, @MailFromName, @MailFrom, @MailTo, @MailCC, @MailBCC, @AttachmentProcName", parameters);
-            _logger.LogInformation("Task {Id} updated", id);
-            task.Task_ID = id;
-            return task;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update task {Id}", id);
-            return StatusCode(500, new { message = $"Failed to update task: {ex.Message}" });
-        }
-    }
-
-    [HttpPost("tasks/{taskId}/test-send")]
-    public async Task<ActionResult> TestSendTask(int taskId, [FromBody] TestSendRequest request)
-    {
-        try
-        {
-            if (string.IsNullOrWhiteSpace(request.Recipient))
-                return BadRequest(new { message = "Recipient is required" });
-
-            // Verify task exists
-            using var conn = CreateConnection();
-            var task = await conn.QueryFirstOrDefaultAsync<TaskRow>(
-                "SELECT Task_ID, TaskCode, TaskType FROM dbo.EmailTaskConfig WHERE Task_ID = @TaskId",
-                new { TaskId = taskId });
-            if (task == null)
-                return NotFound(new { message = $"Task {taskId} not found" });
-
-            // Send test notification via FXNotification API
-            var client = _httpClientFactory.CreateClient("FXNotification");
-            var bodyObj = new
+            if (string.IsNullOrEmpty(text)) return text;
+            foreach (var kvp in data)
             {
-                SUBJECT = request.Subject ?? $"Test: {task.TaskCode}",
-                BODY = request.Body ?? $"This is a test notification for task [{task.TaskCode}].",
-                test = true
-            };
-            var payload = new
-            {
-                taskId = taskId,
-                to = request.Recipient,
-                bodyJson = System.Text.Json.JsonSerializer.Serialize(bodyObj),
-                priority = "H"
-            };
-
-            var content = new StringContent(
-                System.Text.Json.JsonSerializer.Serialize(payload),
-                System.Text.Encoding.UTF8,
-                "application/json");
-
-            var response = await client.PostAsync("api/notifications/queue", content);
-            var responseBody = await response.Content.ReadAsStringAsync();
-
-            if (!response.IsSuccessStatusCode)
-            {
-                _logger.LogWarning("FXNotification test-send failed for task {TaskId}: {Status} {Body}",
-                    taskId, response.StatusCode, responseBody);
-                return StatusCode((int)response.StatusCode,
-                    new { message = $"Failed to queue test notification: {responseBody}" });
+                text = text.Replace($"{{{{{kvp.Key}}}}}", kvp.Value?.ToString() ?? "");
             }
+            return text;
+        }
 
-            _logger.LogInformation("Test notification queued for task {TaskId} ({TaskCode}) to {Recipient}",
-                taskId, task.TaskCode, request.Recipient);
-            return Ok(new { message = $"Test notification queued to {request.Recipient}" });
-        }
-        catch (Exception ex)
+        return Ok(new TemplatePreviewResponse
         {
-            _logger.LogError(ex, "Failed to send test notification for task {TaskId}", taskId);
-            return StatusCode(500, new { message = $"Failed to send test notification: {ex.Message}" });
-        }
+            Subject = Render(template.Subject),
+            BodyHtml = Render(template.BodyHtml),
+            BodyText = Render(template.BodyText)
+        });
     }
 
-    #endregion
+    // ========================================================================
+    // Notification Types
+    // ========================================================================
 
-    #region Outbox
-
-    [HttpGet("outbox")]
-    public async Task<ActionResult<OutboxListResponse>> GetOutbox(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
+    /// <summary>
+    /// List notification types
+    /// </summary>
+    [HttpGet("types")]
+    [Authorize]
+    public async Task<ActionResult<List<NotificationType>>> GetTypes()
     {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<OutboxRow>("exec dbo.csp_Outbox_Get");
-            var list = items.OrderByDescending(x => x.Id).ToList();
+        var types = await _context.Set<NotificationType>()
+            .Where(t => t.IsActive)
+            .OrderBy(t => t.Category)
+            .ThenBy(t => t.Name)
+            .ToListAsync();
 
-            var pagedItems = list
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-
-            return new OutboxListResponse
-            {
-                Items = pagedItems,
-                TotalCount = list.Count,
-                Page = page,
-                PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling(list.Count / (double)pageSize)
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get outbox");
-            return StatusCode(500, new { message = "Failed to get outbox" });
-        }
+        return Ok(types);
     }
 
-    [HttpPut("outbox/{id}")]
-    public async Task<ActionResult> UpdateOutbox(int id, [FromBody] OutboxRow item)
+    // ========================================================================
+    // Moderation Rules
+    // ========================================================================
+
+    /// <summary>
+    /// List moderation rules
+    /// </summary>
+    [HttpGet("rules")]
+    [Authorize]
+    public async Task<ActionResult<List<ModerationRule>>> GetRules([FromQuery] string? siteKey)
     {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync(
-                "exec dbo.csp_Outbox_Update @ID, @TaskID, @ToList, @BodyJson, @DetailJson",
-                new { ID = id, item.TaskId, item.ToList, item.BodyJson, item.DetailJson });
-            _logger.LogInformation("Outbox item {Id} updated", id);
-            return Ok(new { message = "Updated" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to update outbox item {Id}", id);
-            return StatusCode(500, new { message = "Failed to update outbox item" });
-        }
+        var query = _context.Set<ModerationRule>().AsQueryable();
+
+        if (!string.IsNullOrEmpty(siteKey))
+            query = query.Where(r => r.SiteKey == null || r.SiteKey == siteKey);
+
+        var rules = await query
+            .OrderBy(r => r.Priority)
+            .ToListAsync();
+
+        return Ok(rules);
     }
 
-    [HttpDelete("outbox/{id}")]
-    public async Task<ActionResult> DeleteOutbox(int id)
+    // ========================================================================
+    // Webhook (for FXNotification callbacks)
+    // ========================================================================
+
+    /// <summary>
+    /// Webhook endpoint for FXNotification delivery status updates
+    /// </summary>
+    [HttpPost("{id}/webhook")]
+    public async Task<ActionResult> Webhook(long id, [FromBody] FxWebhookPayload payload)
     {
-        try
+        var item = await _context.Set<NotificationQueueItem>().FindAsync(id);
+        if (item == null) return NotFound();
+
+        if (payload.Status == "Sent" || payload.Status == "Delivered")
         {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync("exec dbo.csp_Outbox_Delete @ID", new { ID = id });
-            _logger.LogInformation("Outbox item {Id} deleted", id);
-            return Ok(new { message = "Deleted" });
+            item.Status = "Sent";
+            item.SentAt = DateTime.UtcNow;
         }
-        catch (Exception ex)
+        else if (payload.Status == "Failed")
         {
-            _logger.LogError(ex, "Failed to delete outbox item {Id}", id);
-            return StatusCode(500, new { message = "Failed to delete outbox item" });
+            item.Status = "Failed";
+            item.ErrorMessage = payload.Error;
         }
+
+        item.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return Ok();
     }
 
-    [HttpPost("outbox/{id}/retry")]
-    public async Task<ActionResult> RetryOutbox(int id)
+    // ========================================================================
+    // Helpers
+    // ========================================================================
+
+    private async Task<User?> GetCurrentUserAsync()
     {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync("exec dbo.csp_History_Retry @Id", new { Id = id });
-            _logger.LogInformation("Outbox item {Id} queued for retry", id);
-            return Ok(new { message = "Queued for retry" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retry outbox item {Id}", id);
-            return StatusCode(500, new { message = "Failed to retry" });
-        }
+        var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (!int.TryParse(userIdClaim, out var userId)) return null;
+        return await _context.Users.FindAsync(userId);
     }
-
-    #endregion
-
-    #region History
-
-    [HttpGet("history")]
-    public async Task<ActionResult<HistoryListResponse>> GetHistory(
-        [FromQuery] int page = 1,
-        [FromQuery] int pageSize = 20)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<HistoryRow>("exec dbo.csp_History_Get");
-            var list = items.OrderByDescending(x => x.ID).ToList();
-
-            var pagedItems = list
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-
-            return new HistoryListResponse
-            {
-                Items = pagedItems,
-                TotalCount = list.Count,
-                Page = page,
-                PageSize = pageSize,
-                TotalPages = (int)Math.Ceiling(list.Count / (double)pageSize)
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get history");
-            return StatusCode(500, new { message = "Failed to get history" });
-        }
-    }
-
-    [HttpPost("history/{id}/retry")]
-    public async Task<ActionResult> RetryHistory(int id)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            await conn.ExecuteAsync("exec dbo.csp_History_Retry @Id", new { Id = id });
-            _logger.LogInformation("History item {Id} queued for retry", id);
-            return Ok(new { message = "Queued for retry" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to retry history item {Id}", id);
-            return StatusCode(500, new { message = "Failed to retry" });
-        }
-    }
-
-    [HttpGet("history/{id}/audit")]
-    public async Task<ActionResult<List<AuditRow>>> GetHistoryAudit(int id)
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var audit = await conn.QueryAsync<AuditRow>(
-                "exec dbo.csp_History_Audit @ID",
-                new { ID = id });
-            return audit.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get audit for history item {Id}", id);
-            return StatusCode(500, new { message = "Failed to get audit" });
-        }
-    }
-
-    #endregion
-
-    #region Lookup Data
-
-    [HttpGet("lookup/security-modes")]
-    public async Task<ActionResult<List<LookupItem>>> GetSecurityModes()
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<LookupItem>("exec dbo.csp_SecurityMode_Get");
-            return items.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get security modes");
-            return StatusCode(500, new { message = "Failed to get security modes" });
-        }
-    }
-
-    [HttpGet("lookup/task-status")]
-    public async Task<ActionResult<List<LookupItem>>> GetTaskStatuses()
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<LookupItem>("exec dbo.csp_Task_Status");
-            return items.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get task statuses");
-            return StatusCode(500, new { message = "Failed to get task statuses" });
-        }
-    }
-
-    [HttpGet("lookup/task-types")]
-    public async Task<ActionResult<List<LookupItem>>> GetTaskTypes()
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<LookupItem>("exec dbo.csp_Task_Type");
-            return items.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get task types");
-            return StatusCode(500, new { message = "Failed to get task types" });
-        }
-    }
-
-    [HttpGet("lookup/task-priorities")]
-    public async Task<ActionResult<List<LookupItem>>> GetTaskPriorities()
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<LookupItem>("exec dbo.csp_Task_Priority");
-            return items.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get task priorities");
-            return StatusCode(500, new { message = "Failed to get task priorities" });
-        }
-    }
-
-    [HttpGet("lookup/outbox-status")]
-    public async Task<ActionResult<List<LookupItem>>> GetOutboxStatuses()
-    {
-        try
-        {
-            using var conn = CreateConnection();
-            var items = await conn.QueryAsync<LookupItem>("exec dbo.csp_Outbox_Status");
-            return items.ToList();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get outbox statuses");
-            return StatusCode(500, new { message = "Failed to get outbox statuses" });
-        }
-    }
-
-    #endregion
-
-    #region Stats
-
-    [HttpGet("stats")]
-    public async Task<ActionResult<NotificationStats>> GetStats()
-    {
-        try
-        {
-            using var conn = CreateConnection();
-
-            // Get counts from each table
-            var profileCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM MailProfile");
-            var activeProfileCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM MailProfile WHERE IsActive = 1");
-            var templateCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM Email_Templates");
-            var taskCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailTaskConfig");
-            var activeTaskCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailTaskConfig WHERE Status = 'Active'");
-            var pendingCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 1");
-            var failedCount = await conn.ExecuteScalarAsync<int>("SELECT COUNT(*) FROM EmailOutbox WHERE Status = 99");
-
-            var today = DateTime.UtcNow.Date;
-            var thisWeek = today.AddDays(-(int)today.DayOfWeek);
-
-            var sentToday = await conn.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM EmailOutbox WHERE Status = 100 AND CreatedAt >= @Today",
-                new { Today = today });
-            var sentThisWeek = await conn.ExecuteScalarAsync<int>(
-                "SELECT COUNT(*) FROM EmailOutbox WHERE Status = 100 AND CreatedAt >= @ThisWeek",
-                new { ThisWeek = thisWeek });
-
-            return new NotificationStats
-            {
-                TotalProfiles = profileCount,
-                ActiveProfiles = activeProfileCount,
-                TotalTemplates = templateCount,
-                TotalTasks = taskCount,
-                ActiveTasks = activeTaskCount,
-                PendingMessages = pendingCount,
-                FailedMessages = failedCount,
-                SentToday = sentToday,
-                SentThisWeek = sentThisWeek
-            };
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to get notification stats");
-            return StatusCode(500, new { message = "Failed to get stats. Check database connection." });
-        }
-    }
-
-    #endregion
 }
 
-#region DTOs
-
-public class TestSendRequest
+public class FxWebhookPayload
 {
-    public string Recipient { get; set; } = string.Empty;
-    public string? Subject { get; set; }
-    public string? Body { get; set; }
+    public string? Status { get; set; }
+    public string? Error { get; set; }
+    public DateTime? DeliveredAt { get; set; }
 }
-
-public class LookupItem
-{
-    public string? Value { get; set; }
-    public string? Text { get; set; }
-}
-
-public class OutboxListResponse
-{
-    public List<OutboxRow> Items { get; set; } = new();
-    public int TotalCount { get; set; }
-    public int Page { get; set; }
-    public int PageSize { get; set; }
-    public int TotalPages { get; set; }
-}
-
-public class HistoryListResponse
-{
-    public List<HistoryRow> Items { get; set; } = new();
-    public int TotalCount { get; set; }
-    public int Page { get; set; }
-    public int PageSize { get; set; }
-    public int TotalPages { get; set; }
-}
-
-public class NotificationStats
-{
-    public int TotalProfiles { get; set; }
-    public int ActiveProfiles { get; set; }
-    public int TotalTemplates { get; set; }
-    public int TotalTasks { get; set; }
-    public int ActiveTasks { get; set; }
-    public int PendingMessages { get; set; }
-    public int FailedMessages { get; set; }
-    public int SentToday { get; set; }
-    public int SentThisWeek { get; set; }
-}
-
-#endregion
