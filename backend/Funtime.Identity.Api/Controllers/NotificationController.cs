@@ -9,7 +9,7 @@ using Funtime.Identity.Api.Services;
 namespace Funtime.Identity.Api.Controllers;
 
 [ApiController]
-[Route("api/notifications")]
+[Route("notifications")]
 public class NotificationController : ControllerBase
 {
     private readonly ApplicationDbContext _context;

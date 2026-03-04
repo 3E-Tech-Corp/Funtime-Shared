@@ -4,6 +4,7 @@ import {
   Eye, Send, Trash2, Filter, ChevronLeft, ChevronRight,
   Check, X, RotateCcw
 } from 'lucide-react';
+import { config } from '../utils/config';
 
 interface NotificationQueueItem {
   id: number;
@@ -86,7 +87,7 @@ export function NotificationPipelineTab() {
       if (statusFilter) params.append('status', statusFilter);
       if (siteFilter) params.append('siteKey', siteFilter);
 
-      const response = await fetch(`/api/notifications/queue?${params}`, {
+      const response = await fetch(`${config.API_URL}/notifications/queue?${params}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
         },
@@ -106,7 +107,7 @@ export function NotificationPipelineTab() {
 
   const handleApprove = async (id: number) => {
     try {
-      const response = await fetch(`/api/notifications/${id}/approve`, {
+      const response = await fetch(`${config.API_URL}/notifications/${id}/approve`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -127,7 +128,7 @@ export function NotificationPipelineTab() {
 
   const handleReject = async (id: number) => {
     try {
-      const response = await fetch(`/api/notifications/${id}/reject`, {
+      const response = await fetch(`${config.API_URL}/notifications/${id}/reject`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -148,7 +149,7 @@ export function NotificationPipelineTab() {
 
   const handleRetry = async (id: number) => {
     try {
-      const response = await fetch(`/api/notifications/${id}/retry`, {
+      const response = await fetch(`${config.API_URL}/notifications/${id}/retry`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
