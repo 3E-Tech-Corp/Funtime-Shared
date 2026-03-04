@@ -1,0 +1,43 @@
+name: Run Migrations
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    name: Run SQL Migrations
+    runs-on: [self-hosted, windows, iis]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run SQL migrations
+        shell: powershell
+        run: |
+          Write-Host "[MIGRATIONS] Running SQL migrations from SQL-Scripts folder..."
+          
+          $migrationsPath = "backend\SQL-Scripts"
+          if (Test-Path $migrationsPath) {
+            $migrationFiles = Get-ChildItem -Path $migrationsPath -Filter "*.sql" | Where-Object { $_.Name -match '^\d{3}_' } | Sort-Object Name
+            foreach ($file in $migrationFiles) {
+              # Skip database creation script
+              if ($file.Name -eq "001_CreateDatabase.sql") {
+                Write-Host "[MIGRATIONS] Skipping: $($file.Name) (database creation)"
+                continue
+              }
+              Write-Host "[MIGRATIONS] Running: $($file.Name)"
+              try {
+                & sqlcmd -S localhost -d FuntimeShared -E -i $file.FullName -t 300
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "[MIGRATIONS] Completed: $($file.Name)" -ForegroundColor Green
+                } else {
+                  Write-Host "[MIGRATIONS] WARNING: $($file.Name) returned exit code $LASTEXITCODE" -ForegroundColor Yellow
+                }
+              } catch {
+                Write-Host "[MIGRATIONS] WARNING: $($file.Name) - $($_.Exception.Message)" -ForegroundColor Yellow
+              }
+            }
+          } else {
+            Write-Host "[MIGRATIONS] No migrations folder found at $migrationsPath"
+            exit 1
+          }
