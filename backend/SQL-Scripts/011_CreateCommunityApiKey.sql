@@ -1,6 +1,9 @@
 -- Create API Key for pickleball.community notification pipeline access
 -- This key allows the community site to send notifications via the centralized pipeline
 
+SET QUOTED_IDENTIFIER ON;
+GO
+
 USE FuntimeIdentity;
 GO
 
