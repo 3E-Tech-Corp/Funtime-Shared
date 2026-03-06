@@ -695,6 +695,74 @@ public class OAuthController : ControllerBase
         return Redirect(finalUrl);
     }
 
+    /// <summary>
+    /// Facebook Data Deletion Callback - handles GDPR data deletion requests from Facebook
+    /// </summary>
+    [HttpPost("facebook/data-deletion")]
+    public async Task<ActionResult> FacebookDataDeletion([FromForm] string signed_request)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(signed_request))
+            {
+                return BadRequest(new { error = "Missing signed_request" });
+            }
+
+            // Parse the signed request from Facebook
+            var parts = signed_request.Split('.');
+            if (parts.Length != 2)
+            {
+                return BadRequest(new { error = "Invalid signed_request format" });
+            }
+
+            // Decode the payload (base64url)
+            var payload = parts[1];
+            payload = payload.Replace('-', '+').Replace('_', '/');
+            switch (payload.Length % 4)
+            {
+                case 2: payload += "=="; break;
+                case 3: payload += "="; break;
+            }
+
+            var payloadBytes = Convert.FromBase64String(payload);
+            var payloadJson = JsonSerializer.Deserialize<JsonElement>(payloadBytes);
+
+            var userId = payloadJson.GetProperty("user_id").GetString();
+            if (string.IsNullOrEmpty(userId))
+            {
+                return BadRequest(new { error = "Missing user_id in payload" });
+            }
+
+            _logger.LogInformation("Facebook data deletion request for user: {UserId}", userId);
+
+            // Find and remove the external login
+            var externalLogin = await _context.ExternalLogins
+                .FirstOrDefaultAsync(e => e.Provider == "facebook" && e.ProviderUserId == userId);
+
+            if (externalLogin != null)
+            {
+                _context.ExternalLogins.Remove(externalLogin);
+                await _context.SaveChangesAsync();
+                _logger.LogInformation("Deleted Facebook external login for provider user: {UserId}", userId);
+            }
+
+            // Generate a confirmation code for Facebook
+            var confirmationCode = Guid.NewGuid().ToString("N")[..16];
+
+            // Return the required response format for Facebook
+            return Ok(new
+            {
+                url = $"https://shared.funtimepb.com/data-deletion-status?code={confirmationCode}",
+                confirmation_code = confirmationCode
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Facebook data deletion callback failed");
+            return StatusCode(500, new { error = "Internal server error" });
+        }
+    }
+
     private RedirectResult RedirectToLoginWithError(string error)
     {
         var baseUrl = $"{Request.Scheme}://{Request.Host}";
